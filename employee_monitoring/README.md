@@ -56,7 +56,7 @@ pytest
 
 ## V1 scope
 
-Entrance identity is confirmed on a track, then a line crossing opens or closes an attendance session. The office camera detects sitting and standing, associates the body base with a desk polygon, and only then starts or ends a desk session.
+Entrance identity is confirmed on a track, then a line crossing opens or closes an attendance session. The office camera detects Working or Notworking, associates the body base with a desk polygon, and only then starts or ends a desk session. Notworking does not count as being at the desk.
 
 A dead camera becomes `UNKNOWN_CAMERA_FAILURE`. It does not mark the employee away.
 
@@ -65,7 +65,7 @@ Phone detection is not wired into the live loop. `app/detection/phone_detector.p
 ## Models
 
 - Entrance person tracking: `models.entrance_person_model` (defaults to `yolov8n.pt`)
-- Desk posture: `models/sitting_model/best.pt` with classes `sitting` and `standing`
+- Desk posture: `models/sitting_model/best.pt` with classes `Notworking` (0) and `Working` (1). Only `Working` starts desk time.
 - Faces: InsightFace behind `app/face/recognizer.py`
 
 Match thresholds in `configs/recognition.yaml` must be tuned on the deployment cameras.

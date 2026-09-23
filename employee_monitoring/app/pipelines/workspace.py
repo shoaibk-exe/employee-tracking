@@ -1,4 +1,4 @@
-"""Workspace observations. Sitting inside an assigned polygon is a fact. Time is decided later."""
+"""Workspace observations. A Working box inside an assigned polygon is a fact. Time is decided later."""
 
 from __future__ import annotations
 
@@ -35,7 +35,10 @@ def run_workspace(
 ) -> WorkspaceTick:
     timestamp = packet.received_timestamp
     tracks = tracker.track(packet.frame, timestamp)
-    allowed = {"sitting"}
+    # Trained labels are 0 Notworking, 1 Working. Only Working means the person is at the desk.
+    # Notworking is ignored so an idle or empty pose cannot keep the desk session open.
+    # sitting/standing remain accepted so an older weights file still counts.
+    allowed = {"working", "sitting"}
     if rules.count_standing_as_at_desk:
         allowed.add("standing")
     if rules.count_bending_as_at_desk:
@@ -50,7 +53,7 @@ def run_workspace(
             class_name="",
         )
     for track in tracks:
-        if track.class_name not in allowed or track.confidence < rules.min_detection_confidence:
+        if _class_name(track.class_name) not in allowed or track.confidence < rules.min_detection_confidence:
             continue
         zone = desks.locate(packet.camera_id, bottom_center(track.bbox))
         if zone is None:
@@ -66,3 +69,8 @@ def run_workspace(
         timestamp=timestamp,
         presence=list(presence.values()),
     )
+
+
+def _class_name(name: str) -> str:
+    """Notworking and not working are the same label."""
+    return "".join(ch for ch in name.lower() if ch.isalnum())
