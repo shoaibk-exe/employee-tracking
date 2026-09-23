@@ -1,0 +1,27 @@
+stream:
+  buffer_size: 2
+  reconnect_base_seconds: 2
+  reconnect_max_seconds: 15
+  offline_after_seconds: 5
+  open_timeout_seconds: 8
+  flush_on_connect_seconds: 0.3
+
+cameras:
+  entrance_01:
+    type: entrance
+    rtsp_url: "${ENTRANCE_CAMERA_RTSP}"
+    enabled: true
+    process_fps: 10
+    location: entrance
+    entrance_line:
+      p1: [200, 420]
+      p2: [850, 420]
+    inside_direction: down
+
+  office_01:
+    type: workspace
+    rtsp_url: "${OFFICE_CAMERA_RTSP}"
+    enabled: true
+    process_fps: 10
+    location: office
+    detector_model: models/sitting_model/best.pt

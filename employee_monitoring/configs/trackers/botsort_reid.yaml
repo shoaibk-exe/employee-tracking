@@ -1,0 +1,22 @@
+# BoT-SORT with appearance ReID for a fixed camera.
+# When two people overlap, IoU cannot tell them apart. Appearance keeps the same track id.
+
+tracker_type: botsort
+track_high_thresh: 0.25
+track_low_thresh: 0.1
+# A weak second box on someone who is already tracked should not start another id.
+new_track_thresh: 0.45
+# Lost tracks stay alive long enough to reclaim an id after a short occlusion.
+track_buffer: 90
+match_thresh: 0.8
+fuse_score: True
+
+# Fixed CCTV. Camera-motion compensation treats walking people as a moving camera and swaps ids.
+gmc_method: none
+
+# ReID is applied when boxes are at least this close (IoU). 0.2 covers a crossing, not the whole room.
+proximity_thresh: 0.2
+appearance_thresh: 0.8
+with_reid: True
+# "auto" uses this detector's own features on yolov8. No separate ReID weights download.
+model: auto

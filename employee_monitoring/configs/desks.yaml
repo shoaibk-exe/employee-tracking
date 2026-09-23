@@ -1,0 +1,18 @@
+desks:
+  desk_001:
+    employee_id: EMP001
+    camera_id: office_01
+    polygon:
+      - [120, 260]
+      - [430, 260]
+      - [450, 650]
+      - [100, 650]
+
+  desk_002:
+    employee_id: EMP002
+    camera_id: office_01
+    polygon:
+      - [500, 250]
+      - [800, 250]
+      - [830, 650]
+      - [480, 650]

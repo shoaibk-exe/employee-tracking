@@ -1,0 +1,9 @@
+models:
+  face_pack: buffalo_l
+  face_det_size: 640
+  entrance_person_model: yolov8n.pt
+  workspace_model: models/sitting_model/best.pt
+  phone_model: models/phone_model/best.pt
+  yolo_image_size: 640
+  person_class_name: person
+  tracker: configs/trackers/botsort_reid.yaml

@@ -1,0 +1,45 @@
+# Tune every number on the real cameras before relying on attendance.
+# A borrowed threshold will mark the wrong person or miss them.
+
+face_quality:
+  minimum_width: 80
+  minimum_height: 80
+  minimum_detection_confidence: 0.7
+  maximum_blur_score: 80
+  maximum_yaw: 35
+  maximum_pitch: 30
+  minimum_exposure: 40
+  maximum_exposure: 220
+
+match:
+  min_similarity: 0.45
+  min_margin: 0.08
+
+identity_confirmation:
+  min_observations: 3
+  window_seconds: 2
+
+line_crossing:
+  debounce_seconds: 3
+  hysteresis_px: 12
+
+desk_state:
+  away_candidate_seconds: 3
+  away_confirm_seconds: 10
+  return_confirm_seconds: 3
+  detection_grace_seconds: 5
+  count_standing_as_at_desk: true
+  count_bending_as_at_desk: true
+  min_detection_confidence: 0.4
+
+evidence:
+  enabled: false
+  pre_seconds: 3
+  post_seconds: 5
+  retention_days: 14
+
+phone:
+  enabled: false
+  minimum_confidence: 0.6
+  candidate_seconds: 2
+  confirm_seconds: 5

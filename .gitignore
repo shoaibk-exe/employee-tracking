@@ -1,0 +1,15 @@
+.env
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+data/*.db
+data/*.db-journal
+data/employee_photos/
+models/*.pt
+models/*.onnx
+models/*.engine
+.insightface/
+runs/
+.streamlit/secrets.toml
