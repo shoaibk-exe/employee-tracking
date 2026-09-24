@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from app.api import attendance, cameras, employees, monitoring
+from app.api import attendance, cameras, employees, monitoring, mp4_test
 from app.config import load_config
 from app.database.session import session_scope
 from app.logging_config import configure_logging
@@ -35,13 +35,14 @@ def create_app(service: PipelineService | None = None) -> FastAPI:
     app.include_router(attendance.router)
     app.include_router(monitoring.router)
     app.include_router(cameras.router)
+    app.include_router(mp4_test.router)
 
     @app.middleware("http")
     async def audit_access(request, call_next):
         response = await call_next(request)
         current = getattr(request.app.state, "service", None)
         factory = getattr(current, "_session_factory", None) if current else None
-        if factory is not None and request.url.path != "/health":
+        if factory is not None and request.url.path not in {"/health", "/test-mp4"} and not request.url.path.startswith("/test-mp4/"):
             try:
                 with session_scope(factory) as db:
                     current.repository.audit(db, request.method, request.url.path, response.status_code)

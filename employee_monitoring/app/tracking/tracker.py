@@ -108,26 +108,31 @@ class UltralyticsByteTracker:
         confidence: float = 0.4,
         class_filter: set[str] | None = None,
         tracker_config: str = "configs/trackers/botsort_reid.yaml",
+        device: str | None = None,
     ) -> None:
         self.model_path = model_path
         self.image_size = image_size
         self.confidence = confidence
         self.class_filter = {name.lower() for name in class_filter} if class_filter else None
         self.tracker_config = _resolve_tracker_config(tracker_config)
+        # None leaves the choice to Ultralytics: GPU when CUDA is present, otherwise CPU.
+        self.device = device
         self._model = None
         self._missing_logged = False
 
     def track(self, frame: object, timestamp: datetime) -> list[TrackObservation]:
         model = self._load()
-        results = model.track(
-            frame,
-            persist=True,
-            verbose=False,
-            conf=self.confidence,
-            iou=0.45,
-            imgsz=self.image_size,
-            tracker=self.tracker_config,
-        )
+        track_kwargs = {
+            "persist": True,
+            "verbose": False,
+            "conf": self.confidence,
+            "iou": 0.45,
+            "imgsz": self.image_size,
+            "tracker": self.tracker_config,
+        }
+        if self.device:
+            track_kwargs["device"] = self.device
+        results = model.track(frame, **track_kwargs)
         # A second box on the same body must not become a second person id.
         return dedupe_tracks(self._parse(results, timestamp))
 

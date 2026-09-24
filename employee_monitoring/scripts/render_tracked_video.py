@@ -50,7 +50,7 @@ def _draw_label(frame: np.ndarray, lines: list[str], x: int, y: int, color: tupl
         cv2.putText(frame, line, (x + 4, text_y), font, scale, (255, 255, 255), thickness, cv2.LINE_AA)
 
 
-def render(source: Path, model: Path, output: Path, confidence: float) -> None:
+def render(source: Path, model: Path, output: Path, confidence: float, device: str | None) -> None:
     if not model.is_file():
         raise SystemExit(f"weights missing: {model}")
     if not source.is_file():
@@ -62,6 +62,7 @@ def render(source: Path, model: Path, output: Path, confidence: float) -> None:
         confidence=confidence,
         class_filter=None,
         tracker_config="configs/trackers/botsort_reid.yaml",
+        device=device,
     )
     cap = cv2.VideoCapture(str(source))
     if not cap.isOpened():
@@ -72,7 +73,7 @@ def render(source: Path, model: Path, output: Path, confidence: float) -> None:
     writer = cv2.VideoWriter(str(output), cv2.VideoWriter_fourcc(*"mp4v"), fps, (width, height))
     if not writer.isOpened():
         raise SystemExit(f"could not open writer {output}")
-    print(f"model={model}", flush=True)
+    print(f"model={model} device={device or 'gpu'}", flush=True)
     print(f"writing {output} {width}x{height} @ {fps:.1f} conf>={confidence}", flush=True)
     frame_i = 0
     seen: set[int] = set()
@@ -119,9 +120,14 @@ def main() -> None:
     parser.add_argument("--model", type=Path, default=ROOT / "models" / "sitting_model" / "best.pt")
     parser.add_argument("--output", type=Path, default=None)
     parser.add_argument("--conf", type=float, default=0.5)
+    parser.add_argument(
+        "--device",
+        default=None,
+        help="Leave empty to use the GPU. Pass cpu to run on the CPU.",
+    )
     args = parser.parse_args()
     output = args.output or (repo / "output_videos" / f"{args.source.stem}_ids.mp4")
-    render(args.source, args.model, output, args.conf)
+    render(args.source, args.model, output, args.conf, args.device)
 
 
 if __name__ == "__main__":
