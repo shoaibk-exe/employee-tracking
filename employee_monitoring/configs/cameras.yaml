@@ -10,7 +10,7 @@ cameras:
   entrance_01:
     type: entrance
     rtsp_url: "${ENTRANCE_CAMERA_RTSP}"
-    enabled: true
+    enabled: false
     process_fps: 10
     location: entrance
     entrance_line:

@@ -4,6 +4,6 @@ __pycache__/
 data/evidence/
 data/temp/
 data/*.db
-models/**/*.pt
+
 models/**/*.onnx
 *.pyc
