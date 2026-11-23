@@ -1,0 +1,42 @@
+# Light stays the current look. Both sections are required so the
+# header menu can switch among System, Light, and Dark.
+
+[theme.light]
+primaryColor = "#4F46E5"
+backgroundColor = "#F3F2FF"
+secondaryBackgroundColor = "#FFFFFF"
+textColor = "#1E1B4B"
+borderColor = "#E4E0F5"
+linkColor = "#4F46E5"
+baseRadius = "10px"
+buttonRadius = "10px"
+chartCategoricalColors = ["#10B981", "#F59E0B", "#E11D48", "#6366F1", "#0F766E", "#64748B", "#C2410C"]
+
+[theme.light.sidebar]
+backgroundColor = "#0E0B2B"
+secondaryBackgroundColor = "#18154A"
+textColor = "#C7C9F0"
+primaryColor = "#818CF8"
+
+[theme.dark]
+primaryColor = "#4F46E5"
+backgroundColor = "#100E28"
+secondaryBackgroundColor = "#1C1844"
+textColor = "#E7E6F7"
+borderColor = "#3A3470"
+linkColor = "#A5B4FC"
+codeBackgroundColor = "#1C1844"
+codeTextColor = "#C7D2FE"
+dataframeHeaderBackgroundColor = "#1C1844"
+dataframeBorderColor = "#3A3470"
+showWidgetBorder = true
+baseRadius = "10px"
+buttonRadius = "10px"
+chartCategoricalColors = ["#34D399", "#FBBF24", "#FB7185", "#A5B4FC", "#2DD4BF", "#94A3B8", "#FB923C"]
+
+[theme.dark.sidebar]
+backgroundColor = "#070614"
+secondaryBackgroundColor = "#141230"
+textColor = "#C7C9F0"
+primaryColor = "#A5B4FC"
+borderColor = "#2A2558"

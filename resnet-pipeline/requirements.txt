@@ -1,0 +1,28 @@
+# Tested with Python 3.12, torch 2.14.1+cu130, torchvision 0.29.1, opencv-python 5.0.0.
+# Install torch/torchvision from https://pytorch.org for your CUDA version if you need GPU support.
+torch>=2.1
+torchvision>=0.16
+# Needs a GUI build for cv2.imshow / ROI selection (not opencv-python-headless).
+opencv-python>=4.8
+numpy>=1.24
+Pillow>=10.0
+PyYAML>=6.0
+pytest>=7.4
+# Person detection + BoT-SORT (Ultralytics). Review AGPL licensing before commercial SaaS distribution.
+ultralytics>=8.4.0
+# Hungarian assignment for person↔workstation association (Milestone 4).
+scipy>=1.10
+# Structured VLM features (hybrid): Qwen2.5-VL preferred; Moondream2 still supported.
+# Pin ~=4.49: transformers 5.x breaks Moondream remote code / output quality.
+transformers>=4.49,<5.0
+accelerate>=0.30
+qwen-vl-utils>=0.0.8
+einops>=0.7
+sentencepiece>=0.1.99
+protobuf>=4.0
+# Progress workbook (employees / P## / workstations) saved on stop or interrupt.
+openpyxl>=3.1
+# Frontend API (RTSP, ROI, live stream, progress files).
+fastapi>=0.110
+uvicorn>=0.27
+python-multipart>=0.0.9

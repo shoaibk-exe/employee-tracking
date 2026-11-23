@@ -1,0 +1,20 @@
+# BoT-SORT for a fixed office CCTV camera.
+# Appearance ReID is ON so the same person keeps the same track ID across short gaps.
+
+tracker_type: botsort
+track_high_thresh: 0.30
+track_low_thresh: 0.1
+new_track_thresh: 0.35
+# Keep lost tracks longer under monitor occlusion.
+track_buffer: 120
+match_thresh: 0.8
+fuse_score: True
+
+# Fixed camera — no global motion compensation.
+gmc_method: none
+
+# Appearance ReID (Ultralytics uses detector embeddings when model: auto).
+proximity_thresh: 0.5
+appearance_thresh: 0.75
+with_reid: True
+model: auto

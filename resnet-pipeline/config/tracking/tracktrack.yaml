@@ -1,0 +1,37 @@
+# TrackTrack (CVPR 2025) — best Ultralytics tracker for stable IDs in crowded offices.
+# Paper: "Focusing on Tracks for Online Multi-Object Tracking"
+# Uses Track-Aware Initialization (TAI) to block duplicate IDs on the same person.
+
+tracker_type: tracktrack
+# Balanced gates — fewer empty-object / furniture false tracks than max-sensitivity.
+track_high_thresh: 0.30
+track_low_thresh: 0.10
+new_track_thresh: 0.35
+# Brief lost buffer (~5 s @ 20 FPS). Longer ghosts drew empty boxes on screen.
+# Same-day P## + sticky rematch covers leave/return across longer absences.
+track_buffer: 100
+match_thresh: 0.7
+# Relaxed second pass to re-bind still-lost tracks by appearance after a gap.
+lost_match_thr: 0.95
+
+# Favour appearance over IoU so reappearance away from the last box can still match.
+iou_weight: 0.25
+reid_weight: 0.75
+conf_weight: 0.1
+angle_weight: 0.05
+
+penalty_p: 0.2
+penalty_q: 0.4
+reduce_step: 0.05
+
+# Lower TAI IoU = stronger duplicate-ID suppression when two boxes overlap one person.
+tai_thr: 0.40
+min_track_len: 1
+
+# Fixed CCTV — no camera motion compensation.
+gmc_method: none
+
+# Dedicated YOLO26 ReID encoder (same weights as appearance_gallery).
+# x = largest / strongest appearance match (slower; good for offline MP4 tests).
+with_reid: True
+model: models/yolo26x-reid.onnx

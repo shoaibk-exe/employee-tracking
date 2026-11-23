@@ -1,0 +1,281 @@
+# Multi-Target Multi-Camera Tracking (MTMCT) settings.
+# Paths are resolved relative to the multitrack_cam project root.
+
+system:
+  site_id: "site_01"
+  timezone: "Asia/Karachi"
+  log_level: "INFO"
+  log_directory: "data/logs"
+
+database:
+  # sqlite (default for local/dev) or postgresql
+  url: "sqlite:///data/store/mtmct.db"
+  # Example PostgreSQL:
+  # url: "postgresql+psycopg://mtmct:mtmct@localhost:5432/mtmct"
+  pool_size: 5
+  echo: false
+
+cameras:
+  config: "config/cameras.yaml"
+  target_fps: 15.0   # decoded frames handed on per camera (display + AI picks the newest)
+  process_width: 1280
+  process_height: 720
+  queue_size: 2
+  drop_policy: "latest"  # latest | block
+  rtsp_transport: "tcp"
+  reconnect_delay_seconds: 2.0
+  max_reconnect_delay_seconds: 10.0   # backoff resets after any connection that delivered frames
+  # HEVC RTSP can stall briefly during keyframe waits; avoid flapping.
+  frozen_timeout_seconds: 15.0
+  open_timeout_seconds: 20.0
+  read_timeout_seconds: 15.0
+  # Keep decode queue tiny so latency does not accumulate.
+  capture_buffer_size: 1
+
+pipeline:
+  # live     : shared batched detector -> per-camera BoT-SORT -> per-track identity
+  #            resolver with cross-view (cam_02/cam_03) linking. Recommended.
+  # tracklet : original per-camera YOLO.track + tracklet association.
+  mode: "live"
+
+detection:
+  # Ultralytics YOLO person detector (shared across cameras, batched).
+  # Site benchmark (4 cams, seated office people): yolo11n@640 found 2/6/2 people
+  # at conf>=.35 on cam2/3/4 vs yolo26m@1280 7/3/3 (+ more partly-occluded at .15).
+  # Prefer a local .pt path; otherwise Ultralytics will download the named asset.
+  model: "models/yolo26m.pt"
+  image_size: 1280
+  # Low detector threshold; BoT-SORT decides which boxes start/continue tracks.
+  confidence: 0.12
+  min_box_height: 24
+  iou: 0.50
+  person_class_id: 0
+  max_det: 100
+  device: "auto"
+  half: true
+  batch_size: 4
+
+tracking:
+  algorithm: "botsort"
+  tracker_config: "config/botsort.yaml"
+  enable_reid: true
+  confirm_hits: 2
+  max_lost_seconds: 8.0
+  # Live-mode BoT-SORT (driven by the shared detector):
+  track_high_thresh: 0.35   # first-stage association
+  track_low_thresh: 0.12    # second-stage (occluded/low-score) association
+  new_track_thresh: 0.40    # was 0.6 -> partly hidden people never got a track
+  match_thresh: 0.85
+  lost_seconds: 6.0         # converted to frames from the measured fps
+  gmc_method: "none"        # static cameras; optical-flow GMC only adds CPU
+
+reid:
+  # Dedicated person ReID encoder (shared). YOLO26x-reid ONNX is preferred when present.
+  # Place model under models/ or set an absolute path. If missing, a deterministic
+  # color/HOG fallback is used for unit tests only (not for production accuracy).
+  model: "models/yolo26x-reid.onnx"
+  image_size: 448
+  device: "auto"
+  # Flip TTA doubles ReID cost; live mode embeds many tracks per cycle.
+  flip_tta: false
+  input_norm: "unit"  # unit | imagenet
+  # Live-mode embedding schedule (unresolved tracks first, capped per cycle).
+  unbound_update_interval_seconds: 0.4
+  bound_update_interval_seconds: 2.0
+  max_crops_per_cycle: 16
+  embedding_dim: 512
+  min_crop_side: 40
+  min_blur_laplacian: 25.0
+  max_occlusion_overlap: 0.45
+  samples_per_tracklet: 5
+  update_interval_seconds: 1.0
+
+association:
+  # Calibrate on site footage. Defaults are conservative (prefer provisional over merge).
+  match_threshold: 0.55
+  strong_match_threshold: 0.65
+  match_margin: 0.08
+  new_person_threshold: 0.30
+  provisional_ttl_seconds: 120.0
+  short_term_window_seconds: 600.0
+  long_gap_caution_seconds: 1800.0
+  long_gap_threshold_boost: 0.08
+  min_tracklet_seconds: 1.0
+  min_tracklet_samples: 3
+  appearance_weight: 0.70
+  temporal_weight: 0.15
+  topology_weight: 0.15
+
+multiview:
+  # Same-person linking between overlapping cameras (groups from topology.yaml).
+  # Site measurement: same person cam_02 vs cam_03 ReID cosine ~0.3-0.45, while
+  # different people in one view reach ~0.47 -> geometry is required. Calibrate
+  # at http://<host>:8090/calibrate (click the same points in both views).
+  enabled: true
+  calibration_file: "config/calibration.yaml"
+  auto_calibration_file: "data/store/calibration_auto.json"
+  auto_calibration: true
+  anchor: "head"            # head | foot | center (feet hidden by desks here)
+  geo_sigma: 0.05           # normalized reference-image distance tolerance
+  geo_gate_sigmas: 3.0
+  geo_weight: 0.8
+  app_weight: 0.2
+  min_link_score: 0.45
+  link_margin: 0.08
+  app_only_threshold: 0.62  # uncalibrated: only very strong appearance links
+  votes_to_link: 2
+  misses_to_unlink: 3
+  max_time_skew: 2.0
+  stationary_time_skew: 8.0  # seated pairs: tolerate slow streams (cam_03 measured ~0.4 fps)
+  geometry_time_skew: 6.0   # seat link if either view is seated (relay jitter)
+
+resolver:
+  match_threshold: 0.55
+  strong_match_threshold: 0.65
+  match_margin: 0.08
+  new_identity_threshold: 0.38
+  min_samples_to_match: 2
+  min_samples_to_enroll: 3
+  min_age_to_enroll: 1.5
+  overlap_enroll_delay: 4.0
+  ambiguous_timeout: 12.0
+  no_appearance_timeout: 20.0
+  contradiction_threshold: 0.25
+  contradiction_votes: 3
+  continuity_window: 4.0
+  simultaneity_horizon: 2.0
+  horizon_frame_factor: 3.0      # visibility horizon >= 3 x the camera's measured frame interval
+  max_observation_horizon: 12.0  # cam_03 relay gaps routinely hit 5–10s
+  gallery_update_interval: 4.0
+  merge_window: 90.0
+  anchor_merge_min_votes: 8      # older duplicate IDs merge only via a long-held seat-anchor link (0 = off)
+  anchor_merge_min_bound_seconds: 30.0  # ...and only when both tracks held their IDs this long
+  # Hall <-> Room 3 / brief exits: IDs that just left a reachable camera are preferred candidates.
+  recent_departure_bonus: 0.08
+  recent_match_threshold: 0.52
+  recent_match_margin: 0.06
+  recent_reentry_window: 600.0
+  # Walk-out handoff: someone who walked out of the hall and walks into room 3
+  # (or back) keeps the ID even with weak cross-view appearance; only a clear
+  # appearance contradiction (< handoff_min_appearance) or ambiguity blocks it.
+  walkout_handoff: true
+  walkout_min_motion: 0.5
+  walkout_motion_window: 3.0
+  handoff_min_appearance: 0.25
+  handoff_multi_min_appearance: 0.30
+  handoff_margin: 0.08
+  handoff_event_window: 4.0
+  handoff_time_slack: 1.0
+  handoff_hold_seconds: 5.0
+  # Stream reconnect: same spot re-detected after the outage keeps its ID.
+  reconnect_continuity_window: 20.0
+  # Long, uncontested tracks teach their ID new poses (standing up / walking).
+  stable_learn_seconds: 20.0
+  stable_learn_min_similarity: 0.35
+  stable_learn_self_consistency: 0.50
+  # Automatic duplicate consolidation (one person split into two IDs). Merges
+  # only IDs that look statistically identical on a shared camera, are each
+  # other's unique nearest identity, and were NEVER visible at the same time.
+  dedup_enabled: true
+  dedup_interval: 20.0
+  dedup_min_samples: 6
+  dedup_min_similarity: 0.55
+  dedup_self_ratio: 0.95
+  dedup_margin: 0.08
+  dedup_min_observed_seconds: 60.0
+  dedup_confirmations: 2
+  dedup_covisible_time: 0.5
+  dedup_covisible_max_iou: 0.3
+  # Caption-VLM (BLIP→CLIP text) uses this path. Match only on re-entry or body agreement.
+  face_enabled: true
+  face_min_samples: 1
+  face_match_threshold: 0.90
+  face_margin: 0.04
+  face_unknown_threshold: 0.70
+  face_veto_threshold: 0.70
+  face_veto_min_gallery: 2
+  face_self_consistency: 0.70
+  face_enroll_min_bound: 2.0
+  face_learn_interval: 3.0
+  face_merge_threshold: 0.95
+  face_match_requires_reentry: true
+  face_match_body_floor: 0.42
+  # Hall walkers (not on a seat): match clothing captions across cam_02/cam_03.
+  overlap_caption_link: true
+  overlap_caption_threshold: 0.92
+  overlap_caption_margin: 0.04
+
+identity:
+  id_prefix: "G"
+  id_width: 6
+  retention_days: 90
+  gallery_max_embeddings_per_identity: 32
+  allow_auto_merge: false
+  face_recognition_enabled: false
+
+topology:
+  config: "config/topology.yaml"
+
+# Small VLM identity anchor (CLIP attribute probing). Preferred over face for this
+# pipeline: works when people face away, ~15 ms/batch on RTX 3060, no biometrics.
+vlm_attributes:
+  # CLIP attribute probing proved too weak on these CCTV crops (everyone ~0.98).
+  # Florence-2 caption re-entry (vlm_captions) is the active small-VLM path.
+  enabled: false
+  model: "openai/clip-vit-base-patch32"
+  attr_weight: 3.0
+  min_crop_side: 40
+  interval_seconds: 0.8
+  max_people: 8
+
+# Small generative VLM for re-entry only (not every frame). Caption → CLIP text
+# embedding becomes the identity signature when body ReID is ambiguous / person returns.
+vlm_captions:
+  enabled: true
+  # BLIP is the small caption VLM that loads cleanly on this stack; Florence-2 hits a transformers bug.
+  model: "Salesforce/blip-image-captioning-base"
+  clip_model: "openai/clip-vit-base-patch32"
+  interval_seconds: 2.5      # keep GPU free for YOLO/ReID; captions only for ID re-entry
+  max_pending: 2
+  min_crop_side: 48
+  prompt: "the person is wearing"
+
+face_recognition:
+  # Legacy ArcFace anchor (disabled; VLM attributes replace it).
+  enabled: false
+  model: "buffalo_l"
+  match_threshold: 0.40
+  det_size: 1280
+  det_thresh: 0.5
+  min_face_size: 20
+  quality_threshold: 0.30
+  interval_seconds: 0.5
+
+streaming:
+  # Annotated MJPEG for dashboard overlays (low complexity, works everywhere).
+  # Optional HLS directory for browser-compatible segmented playback.
+  annotated_jpeg_quality: 70
+  mjpeg_fps: 20.0                    # max push rate; each new camera frame is sent once
+  # Show every arriving camera frame with the latest tracked boxes while those boxes are
+  # fresher than display_box_max_age_seconds; otherwise show the exact AI-processed frame
+  # (slow/bursty cams like cam_03) so boxes always sit on people.
+  display_decoupled: true
+  display_box_max_age_seconds: 0.35
+  enable_hls: false
+  hls_directory: "data/output/hls"
+
+monitoring:
+  health_interval_seconds: 2.0
+  gpu_sample_interval_seconds: 2.0
+
+api:
+  host: "0.0.0.0"
+  port: 8090
+  cors_origins:
+    - "http://localhost:5173"
+    - "http://127.0.0.1:5173"
+    - "http://localhost:8090"
+
+evaluation:
+  ground_truth_dir: "sample_data/ground_truth"
+  output_dir: "data/output/eval"

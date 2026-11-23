@@ -1,0 +1,49 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+*.egg-info/
+.venv/
+venv/
+.env
+*.bak
+*~
+.DS_Store
+
+# Runtime logs / PIDs
+logs/*.log
+logs/*.pid
+**/logs/*.log
+**/logs/*.pid
+
+# Runtime data stores / outputs / galleries
+**/data/store/
+**/data/output/
+**/data/gallery/
+**/data/logs/
+**/data/api/
+*.db
+
+# Large media / archives
+*.mp4
+*.avi
+*.mkv
+*.mov
+*.rar
+*.zip
+*.7z
+
+# Model weights (too large for GitHub; keep folder placeholders)
+*.pt
+*.pth
+*.onnx
+*.safetensors
+*.engine
+*.weights
+
+# Training / testing bulk data
+resnet-pipeline/testing/
+resnet-pipeline/training/videomae/databefore_triming/
+resnet-pipeline/training/videomae/data/
+resnet-pipeline/training/**/checkpoints/

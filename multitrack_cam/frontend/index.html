@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MTMCT — Multi-Camera Tracking</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark">MTMCT</span>
+      <span class="brand-sub">4-Camera Global Identity Tracking</span>
+    </div>
+    <div class="kpi-row" id="kpi-row">
+      <div class="kpi"><span class="kpi-label">Live Cameras</span><span class="kpi-value" id="kpi-live">–/–</span></div>
+      <div class="kpi"><span class="kpi-label">Active IDs</span><span class="kpi-value" id="kpi-active">–</span></div>
+      <div class="kpi"><span class="kpi-label">Retained IDs</span><span class="kpi-value" id="kpi-retained">–</span></div>
+      <div class="kpi"><span class="kpi-label">Unresolved</span><span class="kpi-value" id="kpi-unresolved">–</span></div>
+      <div class="kpi"><span class="kpi-label">GPU Mem</span><span class="kpi-value" id="kpi-gpu">–</span></div>
+      <div class="kpi"><span class="kpi-label">E2E Latency</span><span class="kpi-value" id="kpi-e2e">–</span></div>
+      <div class="kpi"><span class="kpi-label">Hall Overlap</span><a class="kpi-value" href="/calibrate" style="color:#7fb3ff">Calibrate</a></div>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="grid" id="camera-grid"></section>
+    <aside class="sidebar">
+      <h2>Identities</h2>
+      <div id="identity-list" class="identity-list"></div>
+      <div id="identity-detail" class="identity-detail hidden">
+        <h3 id="detail-title">Identity</h3>
+        <pre id="detail-body"></pre>
+        <button id="detail-close" type="button">Close</button>
+      </div>
+    </aside>
+  </main>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

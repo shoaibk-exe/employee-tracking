@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>MTMCT — Overlap Calibration</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  body { margin: 0; font-family: system-ui, sans-serif; background: #0f1115; color: #e6e6e6; }
+  header { padding: 12px 18px; background: #161a22; display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+  header a { color: #7fb3ff; }
+  select, button { background: #222836; color: #e6e6e6; border: 1px solid #39425a; padding: 6px 10px; border-radius: 6px; cursor: pointer; }
+  button.primary { background: #2d6cdf; border-color: #2d6cdf; }
+  button.danger { background: #8a2a2a; border-color: #8a2a2a; }
+  .help { padding: 10px 18px; color: #aab; font-size: 14px; line-height: 1.5; }
+  .views { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 0 18px; }
+  .view { position: relative; }
+  .view h3 { margin: 6px 0; font-size: 15px; }
+  .view.active h3 { color: #ffd34d; }
+  .stage { position: relative; display: inline-block; width: 100%; }
+  .stage img { width: 100%; display: block; border: 2px solid #2a3142; cursor: crosshair; }
+  .view.active .stage img { border-color: #ffd34d; }
+  .pt { position: absolute; width: 18px; height: 18px; margin: -9px 0 0 -9px; border-radius: 50%; border: 2px solid #fff;
+        font-size: 11px; line-height: 14px; text-align: center; font-weight: 700; pointer-events: none; color: #000; }
+  #status { padding: 8px 18px; font-family: monospace; font-size: 13px; white-space: pre-wrap; color: #9fd39f; }
+</style>
+</head>
+<body>
+<header>
+  <strong>Overlap calibration</strong>
+  <label>Camera to calibrate <select id="member"></select></label>
+  <span id="refLabel"></span>
+  <button id="refresh">Refresh frames</button>
+  <button id="undo">Undo</button>
+  <button id="clearPts">Clear points</button>
+  <button id="save" class="primary">Save calibration</button>
+  <button id="remove" class="danger">Delete saved calibration</button>
+  <a href="/">← Dashboard</a>
+</header>
+<div class="help">
+  Click the <b>same physical point</b> in both views, alternating: first in the camera being calibrated
+  (left), then in the reference camera (right). Use at least <b>6 pairs</b> spread over the whole shared area.
+  People here are mostly seated with feet hidden, so the pipeline links people by a point near the
+  <b>head</b>: pick points at roughly seated-head height (top of monitors, chair-back tops, partition tops,
+  corners of wall posters at that height). Avoid points on one straight line.
+</div>
+<div class="views">
+  <div class="view" id="vMember"><h3 id="hMember"></h3><div class="stage" id="sMember"><img id="imgMember" alt="member" /></div></div>
+  <div class="view" id="vRef"><h3 id="hRef"></h3><div class="stage" id="sRef"><img id="imgRef" alt="reference" /></div></div>
+</div>
+<div id="status"></div>
+<script>
+const COLORS = ["#ff5252","#ffd740","#69f0ae","#40c4ff","#e040fb","#ffab40","#b2ff59","#18ffff","#ff80ab","#eeff41"];
+let groups = [], member = null, reference = null;
+let ptsCam = [], ptsRef = [];
+
+function status(msg) { document.getElementById("status").textContent = msg; }
+
+async function loadStatus() {
+  const r = await fetch("/api/calibration");
+  const data = await r.json();
+  groups = data.groups || [];
+  const sel = document.getElementById("member");
+  const prev = sel.value;
+  sel.innerHTML = "";
+  for (const g of groups) for (const c of g.cameras) if (c.role === "member") {
+    const o = document.createElement("option");
+    o.value = c.camera_id; o.dataset.ref = g.reference_camera;
+    o.textContent = `${c.camera_id} → ${g.reference_camera} (${c.source}${c.reprojection_error != null ? ", err " + c.reprojection_error.toFixed(3) : ""})`;
+    sel.appendChild(o);
+  }
+  if (prev) sel.value = prev;
+  if (!sel.value && sel.options.length) sel.selectedIndex = 0;
+  status(JSON.stringify(data, null, 2));
+  return sel;
+}
+
+function select() {
+  const sel = document.getElementById("member");
+  const opt = sel.options[sel.selectedIndex];
+  if (!opt) { status("No overlapping cameras configured."); return; }
+  member = opt.value; reference = opt.dataset.ref;
+  document.getElementById("hMember").textContent = `${member} (calibrating)`;
+  document.getElementById("hRef").textContent = `${reference} (reference)`;
+  document.getElementById("refLabel").textContent = `reference: ${reference}`;
+  ptsCam = []; ptsRef = [];
+  refreshImages();
+}
+
+function refreshImages() {
+  const t = Date.now();
+  document.getElementById("imgMember").src = `/api/snapshot/${member}?t=${t}`;
+  document.getElementById("imgRef").src = `/api/snapshot/${reference}?t=${t}`;
+  draw();
+}
+
+function draw() {
+  for (const [stageId, pts] of [["sMember", ptsCam], ["sRef", ptsRef]]) {
+    const stage = document.getElementById(stageId);
+    stage.querySelectorAll(".pt").forEach(e => e.remove());
+    pts.forEach((p, i) => {
+      const d = document.createElement("div");
+      d.className = "pt";
+      d.style.left = (p[0] * 100) + "%"; d.style.top = (p[1] * 100) + "%";
+      d.style.background = COLORS[i % COLORS.length];
+      d.textContent = i + 1;
+      stage.appendChild(d);
+    });
+  }
+  const nextMember = ptsCam.length === ptsRef.length;
+  document.getElementById("vMember").classList.toggle("active", nextMember);
+  document.getElementById("vRef").classList.toggle("active", !nextMember);
+}
+
+function onClick(ev, isMember) {
+  const img = ev.currentTarget;
+  const rect = img.getBoundingClientRect();
+  const p = [(ev.clientX - rect.left) / rect.width, (ev.clientY - rect.top) / rect.height];
+  const nextMember = ptsCam.length === ptsRef.length;
+  if (isMember !== nextMember) { status(`Click in the ${nextMember ? "left (" + member + ")" : "right (" + reference + ")"} view next.`); return; }
+  (isMember ? ptsCam : ptsRef).push(p);
+  draw();
+  status(`${ptsRef.length} complete pair(s).` + (ptsRef.length < 6 ? " Add at least 6." : " Ready to save."));
+}
+
+document.getElementById("imgMember").addEventListener("click", e => onClick(e, true));
+document.getElementById("imgRef").addEventListener("click", e => onClick(e, false));
+document.getElementById("member").addEventListener("change", select);
+document.getElementById("refresh").addEventListener("click", refreshImages);
+document.getElementById("undo").addEventListener("click", () => {
+  if (ptsCam.length > ptsRef.length) ptsCam.pop(); else { ptsRef.pop(); ptsCam.pop(); }
+  draw();
+});
+document.getElementById("clearPts").addEventListener("click", () => { ptsCam = []; ptsRef = []; draw(); });
+document.getElementById("save").addEventListener("click", async () => {
+  const n = Math.min(ptsCam.length, ptsRef.length);
+  if (n < 4) { status("Need at least 4 (preferably 6+) point pairs."); return; }
+  const r = await fetch("/api/calibration", {
+    method: "POST", headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({camera_id: member, points_camera: ptsCam.slice(0, n), points_reference: ptsRef.slice(0, n)}),
+  });
+  const data = await r.json();
+  if (!r.ok) { status("Save failed: " + (data.detail || r.status)); return; }
+  status(`Saved ${member} → ${reference}: mean reprojection error ${data.reprojection_error.toFixed(4)} ` +
+         `(normalized; < 0.02 is good), ${data.num_points} inlier points.`);
+  await loadStatus();
+});
+document.getElementById("remove").addEventListener("click", async () => {
+  if (!confirm(`Delete saved calibration for ${member}?`)) return;
+  await fetch(`/api/calibration/${member}`, {method: "DELETE"});
+  await loadStatus();
+});
+
+loadStatus().then(select);
+</script>
+</body>
+</html>

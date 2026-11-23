@@ -1,0 +1,17 @@
+# Optional PostgreSQL for production persistence.
+# Default local mode uses SQLite (no Docker required).
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: mtmct
+      POSTGRES_PASSWORD: mtmct
+      POSTGRES_DB: mtmct
+    ports:
+      - "5432:5432"
+    volumes:
+      - mtmct_pg:/var/lib/postgresql/data
+
+volumes:
+  mtmct_pg:

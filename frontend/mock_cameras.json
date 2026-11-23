@@ -1,0 +1,45 @@
+[
+    {
+        "id": 1,
+        "name": "Office Hall",
+        "status": "online",
+        "rtsp": "rtsp://192.168.1.20:554/stream1",
+        "rotate": false
+    },
+    {
+        "id": 2,
+        "name": "Office working area",
+        "status": "online",
+        "rtsp": "rtsp://192.168.1.21:554/stream1",
+        "rotate": false
+    },
+    {
+        "id": 3,
+        "name": "Office rest area",
+        "status": "online",
+        "rtsp": "rtsp://192.168.1.22:554/stream1",
+        "rotate": false,
+        "tries": 0
+    },
+    {
+        "id": 4,
+        "name": "Test Offie Camera",
+        "status": "online",
+        "rtsp": "rtsp://192.168.1.50:554/stream1",
+        "rotate": true
+    },
+    {
+        "id": 5,
+        "name": "Test Camera 2",
+        "status": "online",
+        "rtsp": "rtsp://192.168.1.60:554/stream1",
+        "rotate": true
+    },
+    {
+        "id": 6,
+        "name": "Test Camera 3",
+        "status": "online",
+        "rtsp": "rtsp://192.168.1.20:554/stream1",
+        "rotate": true
+    }
+]

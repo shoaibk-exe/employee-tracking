@@ -1,0 +1,88 @@
+{
+  "classes": [
+    "computer_interaction",
+    "neither",
+    "phone_using"
+  ],
+  "best_macro_f1": 0.9716242661448141,
+  "history": [
+    {
+      "stage": "head",
+      "epoch": 1,
+      "train_loss": 0.4637439971245488,
+      "accuracy": 0.9550561797752809,
+      "macro_f1": 0.9387671232876712,
+      "recall": {
+        "computer_interaction": 0.926829268292683,
+        "neither": 1.0,
+        "phone_using": 0.972972972972973
+      },
+      "n": 89
+    },
+    {
+      "stage": "head",
+      "epoch": 2,
+      "train_loss": 0.3767132615563249,
+      "accuracy": 0.9550561797752809,
+      "macro_f1": 0.9356953664831466,
+      "recall": {
+        "computer_interaction": 0.9512195121951219,
+        "neither": 0.9090909090909091,
+        "phone_using": 0.972972972972973
+      },
+      "n": 89
+    },
+    {
+      "stage": "head",
+      "epoch": 3,
+      "train_loss": 0.36801827590483327,
+      "accuracy": 0.9662921348314607,
+      "macro_f1": 0.9553103331642144,
+      "recall": {
+        "computer_interaction": 0.9512195121951219,
+        "neither": 1.0,
+        "phone_using": 0.972972972972973
+      },
+      "n": 89
+    },
+    {
+      "stage": "head",
+      "epoch": 4,
+      "train_loss": 0.3647254303733937,
+      "accuracy": 0.9550561797752809,
+      "macro_f1": 0.9356953664831466,
+      "recall": {
+        "computer_interaction": 0.9512195121951219,
+        "neither": 0.9090909090909091,
+        "phone_using": 0.972972972972973
+      },
+      "n": 89
+    },
+    {
+      "stage": "head",
+      "epoch": 5,
+      "train_loss": 0.3592737754845202,
+      "accuracy": 0.9550561797752809,
+      "macro_f1": 0.9356953664831466,
+      "recall": {
+        "computer_interaction": 0.9512195121951219,
+        "neither": 0.9090909090909091,
+        "phone_using": 0.972972972972973
+      },
+      "n": 89
+    },
+    {
+      "stage": "full",
+      "epoch": 1,
+      "train_loss": 0.34979842937026373,
+      "accuracy": 0.9775280898876404,
+      "macro_f1": 0.9716242661448141,
+      "recall": {
+        "computer_interaction": 1.0,
+        "neither": 0.9090909090909091,
+        "phone_using": 0.972972972972973
+      },
+      "n": 89
+    }
+  ]
+}

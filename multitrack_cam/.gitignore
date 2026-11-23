@@ -1,0 +1,17 @@
+.env
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.egg-info/
+.venv/
+venv/
+data/store/
+data/logs/
+data/output/
+data/gallery/
+*.db
+yolo*.pt
+!models/.gitkeep
+models/*.pt
+models/*.onnx
+sample_data/*.mp4

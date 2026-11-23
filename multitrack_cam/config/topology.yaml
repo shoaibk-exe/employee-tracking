@@ -1,0 +1,86 @@
+# Camera topology for physically feasible cross-camera transitions.
+# Entrance -> Hall -> Room 3 layout (approximate).
+
+cameras:
+  cam_01:
+    overlapping_with: []
+    entry_zones: []
+    exit_zones: []
+    blind_spots: []
+  cam_02:
+    overlapping_with: ["cam_03"]
+    entry_zones: []
+    exit_zones: []
+    blind_spots: []
+  cam_03:
+    overlapping_with: ["cam_02"]
+    entry_zones: []
+    exit_zones: []
+    blind_spots: []
+  cam_04:
+    overlapping_with: []
+    entry_zones: []
+    exit_zones: []
+    blind_spots: []
+
+transitions:
+  - from: "cam_01"
+    to: "cam_02"
+    min_travel_seconds: 1.0
+    max_travel_seconds: 180.0
+    overlapping: false
+  - from: "cam_02"
+    to: "cam_01"
+    min_travel_seconds: 1.0
+    max_travel_seconds: 180.0
+    overlapping: false
+  - from: "cam_01"
+    to: "cam_03"
+    min_travel_seconds: 1.0
+    max_travel_seconds: 180.0
+    overlapping: false
+  - from: "cam_03"
+    to: "cam_01"
+    min_travel_seconds: 1.0
+    max_travel_seconds: 180.0
+    overlapping: false
+  - from: "cam_02"
+    to: "cam_03"
+    min_travel_seconds: 0.0
+    max_travel_seconds: 60.0
+    overlapping: true
+  - from: "cam_03"
+    to: "cam_02"
+    min_travel_seconds: 0.0
+    max_travel_seconds: 60.0
+    overlapping: true
+  - from: "cam_02"
+    to: "cam_04"
+    min_travel_seconds: 1.0
+    max_travel_seconds: 180.0
+    overlapping: false
+  - from: "cam_04"
+    to: "cam_02"
+    min_travel_seconds: 1.0
+    max_travel_seconds: 180.0
+    overlapping: false
+  - from: "cam_03"
+    to: "cam_04"
+    min_travel_seconds: 1.0
+    max_travel_seconds: 180.0
+    overlapping: false
+  - from: "cam_04"
+    to: "cam_03"
+    min_travel_seconds: 1.0
+    max_travel_seconds: 180.0
+    overlapping: false
+
+# Hall cams can see the same person at the same time.
+simultaneous_allowed_pairs:
+  - ["cam_02", "cam_03"]
+
+# Overlapping views share one reference image plane for cross-view linking.
+overlap_groups:
+  - name: "hall"
+    reference_camera: "cam_02"
+    cameras: ["cam_02", "cam_03"]

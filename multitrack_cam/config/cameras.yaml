@@ -1,0 +1,35 @@
+# Live CCTV RTSP sources.
+# C200 / C200_2 / 2k_megnetic are physically upside-down; rotate 180° before detection/tracking.
+
+cameras:
+  - camera_id: "cam_01"
+    display_name: "AW200 — Room 1"
+    location: "Room 1 (different angle)"
+    enabled: true
+    source: "rtsp://100.83.220.107:8555/aw200"
+    rotation: 0
+    time_offset_seconds: 0.0
+
+  - camera_id: "cam_02"
+    display_name: "C200_2 — Room 1"
+    location: "Room 1 (different angle)"
+    enabled: true
+    source: "rtsp://100.83.220.107:8555/c200_2"
+    rotation: 180
+    time_offset_seconds: 0.0
+
+  - camera_id: "cam_03"
+    display_name: "C200 — Room 1"
+    location: "Room 1"
+    enabled: true
+    source: "rtsp://100.83.220.107:8555/c200"
+    rotation: 180
+    time_offset_seconds: 0.0
+
+  - camera_id: "cam_04"
+    display_name: "2k megnetic — Room 2"
+    location: "Room 2"
+    enabled: true
+    source: "rtsp://100.83.220.107:8555/2k_megnetic"
+    rotation: 180
+    time_offset_seconds: 0.0

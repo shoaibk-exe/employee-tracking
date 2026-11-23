@@ -1,0 +1,21 @@
+# MTMCT multi-camera tracking — tested with Python 3.11 + CUDA (conda env y3).
+torch>=2.1
+torchvision>=0.16
+ultralytics>=8.4.0
+opencv-python>=4.8
+numpy>=1.24,<2.1
+scipy>=1.10
+onnxruntime-gpu>=1.17
+PyYAML>=6.0
+fastapi>=0.110
+uvicorn>=0.27
+websockets>=12.0
+SQLAlchemy>=2.0
+psycopg[binary]>=3.1
+pydantic>=2.0
+pytest>=7.4
+python-multipart>=0.0.9
+
+# Optional acceleration / biometrics (not required to start):
+# faiss-cpu>=1.7.4
+# insightface>=0.7.3

@@ -1,0 +1,273 @@
+# Employee presence monitoring settings.
+# Relative paths are resolved from the project root (where you run the commands).
+
+tenant:
+  # SaaS tenant boundary. Never reuse across companies.
+  tenant_id: "demo"
+
+pipeline:
+  # occupancy = existing ResNet-18 ROI classifier only
+  # tracking  = YOLO26m + BoT-SORT person tracking only (Milestone 2)
+  # full      = person-centric presence pipeline: tracking + posture + workstation
+  #             association + ResNet-18 support + identity + seated time (needs scene.map)
+  mode: "occupancy"
+
+camera:
+  camera_id: "CAM01"
+  source: "testing/input.mp4"
+  rotation: 0
+  recording_start_utc: null
+
+model:
+  checkpoint: "models/resnet18_empty_occupied.pth"
+  device: "auto"
+  batch_size: 16
+  class_names: null
+  preprocessing_config:
+    resize: 256
+    crop_size: 224
+    interpolation: "bilinear"
+    color_order: "RGB"
+    mean: [0.485, 0.456, 0.406]
+    std: [0.229, 0.224, 0.225]
+
+detection:
+  # Fine-tuned YOLOv8m (native classes sitting / standing).
+  # Pipeline maps sitting -> working, standing -> not_working.
+  model: "models/yolov8m_sitting_standing.pt"
+  image_size: 640
+  # Balanced: high enough to cut empty-object / furniture false positives.
+  confidence: 0.30
+  # Lower IoU = more aggressive NMS merge of overlapping sitting/standing boxes.
+  iou: 0.45
+  person_class_name: "person"
+  track_class_names: ["sitting", "standing"]
+  max_det: 100
+  device: "auto"
+
+tracking:
+  # TrackTrack (CVPR 2025) + YOLO26 ReID — strongest ID stability in Ultralytics 8.4.
+  algorithm: "tracktrack"
+  enable_reid: true
+  tracker_config: "config/tracking/tracktrack.yaml"
+  # 0.0 = update tracker on every decoded frame (required for continuity).
+  interval_seconds: 0.0
+  confirm_hits: 2
+  # Short LOST hold — long ghosts were drawing empty boxes and burning GPU.
+  # Same-day P## rematch covers leave/return; tracker buffer is brief only.
+  max_lost_seconds: 5.0
+
+rois:
+  config: "config/workstations.json"
+  allow_scaling: true
+
+scene:
+  # Full mode workstation geometry:
+  #   use_admin_rois: true  -> use rois.config exactly (recommended; no auto desk detect)
+  #   use_admin_rois: false -> load the saved scene map below instead
+  use_admin_rois: true
+  map: "config/scene_map.json"
+  # Low-cadence runtime check: camera alignment vs the map reference frame.
+  check_interval_seconds: 30.0
+  max_alignment_shift_px: 8.0
+  min_alignment_inliers: 40
+  evidence_stale_seconds: 600.0
+  layout_change_fraction: 0.5
+
+association:
+  min_score: 0.35
+  ambiguity_margin: 0.08
+  confirm_seconds: 3.0          # seated evidence needed before a person is "at" a workstation
+  candidate_max_gap_seconds: 1.0
+  leave_confirm_seconds: 2.0    # contradicting evidence needed before leaving
+  max_gap_seconds: 5.0          # no supporting evidence -> association ends (backdated)
+  standing_ratio: 1.40          # box height / expected seated height
+  seated_ratio: 1.25
+  moving_speed: 0.50            # box heights per second
+
+fusion:
+  person_confidence: 0.95
+  resnet_threshold: 0.80
+  # ResNet "occupied" with nobody visible in the crop must be at least this confident.
+  uncorroborated_occupied_threshold: 0.95
+  # ResNet crops outside the training-crop distribution are not classified.
+  min_crop_side_px: 64
+  min_crop_aspect: 0.45
+  max_crop_aspect: 2.10
+
+identity:
+  # Optional JSON {"tenant_id": ..., "employees": [{"employee_id": ..., "active": true}]}.
+  # Identities come only from verified external sources; otherwise UNKNOWN_EMPLOYEE.
+  employees: null
+  min_confidence: 0.90
+
+activity:
+  # VideoMAE desk activity on workstation ROI clips (alongside YOLO sitting/standing).
+  # Classes come from training/videomae/trims folder names.
+  enabled: true
+  checkpoint: "models/videomae-large-activity"
+  device: "auto"
+  num_frames: 16
+  # Stride 2 → ~1.5s lookback at 20fps (was stride 4 ≈ 3s). Shorter window = snappier class flips.
+  frame_stride: 2
+  # Re-score about once per second so phone_using ↔ neither updates quickly in the UI.
+  interval_seconds: 1.0
+  min_side_px: 64
+  # Keep only a few seconds of desk crops so old activity cannot dominate the clip.
+  buffer_size: 48
+  store_size: 224
+
+appearance_gallery:
+  # Same-day anonymous person IDs (P01, P02…) that survive tracker ID breaks.
+  # backend: hybrid = ReID embeddings + VLM features (BOTH must match to reuse a P##)
+  #          reid   = YOLO26x person-ReID only
+  #          vlm    = legacy Moondream clothing captions
+  # Wiped automatically next calendar day.
+  # VLM (Qwen) is off: reid frees GPU for VideoMAE + YOLO. Switch back to hybrid to restore VLM.
+  enabled: true
+  backend: "reid"
+  model: "models/yolo26x-reid.onnx"
+  # Stronger CCTV colour VLM (fits ~12GB with YOLO+ReID). Moondream fallback:
+  #   vlm_model: "vikhyatk/moondream2"  +  vlm_revision: "2025-06-21"
+  vlm_model: "Qwen/Qwen2.5-VL-3B-Instruct"
+  vlm_revision: ""
+  # Collect 5 ReID embeddings (pick most consistent) + 5 VLM feature passes
+  # (majority vote per feature: gender, glasses, top_color, bottom_color, hair, hat).
+  # Features that stay unknown after voting are skipped when comparing.
+  consensus_samples: 5
+  vlm_majority_min: 2
+  vlm_min_comparable: 2
+  # One Qwen worker. A second worker would keep another KV cache on the GPU.
+  vlm_workers: 1
+  # Identity veto (block emb rematch on VLM mismatch).
+  vlm_identity_veto: true
+  # Modest bbox pad when cropping for VLM (from clean source frame; no stretch).
+  vlm_crop_pad_x: 0.15
+  vlm_crop_pad_top: 0.08
+  # Static people: after N duplicate-crop skips with ≥1 unique sample, commit.
+  vlm_dup_skip_limit: 3
+  # Gallery features = per-person votes; commit a value at >=2 agreeing votes and
+  # >=60% share; later majority corrects early mistakes (occluded first crops).
+  vlm_gallery_min_votes: 2
+  vlm_gallery_min_share: 0.6
+  vlm_gallery_color_min_share: 0.50  # colour/pattern; unique 2-vote plurality also commits
+  vlm_gallery_color_min_votes: 2    # 2+ agreeing clean crops; warm/cool guard blocks red pollution
+  vlm_gallery_max_votes: 15
+  vlm_veto_min_samples: 3       # veto decides after 3 unique track samples
+  vlm_veto_agree_override: 3    # tolerate 1 conflicting key when >=3 keys agree
+  vlm_enroll_min_samples: 2     # new P## waits for 2 VLM samples ...
+  vlm_max_wait_seconds: 20.0    # ... or this long (VLM stuck)
+  vlm_positional_check: true    # VLM-verify continuity/sticky hand-overs
+  vlm_release_min_conflicts: 2
+  vlm_max_overlap: 0.08         # skip VLM crops overlapped by another person's box
+  vlm_torso_max_overlap: 0.05   # stricter: skip if torso band is overlapped
+  # Optional: save every VLM crop + raw reply (audit). null = off.
+  # Enable while debugging identity: "data/output/vlm_debug"
+  vlm_debug_directory: null
+  sticky_hold_frames: 7       # brief miss: reuse same P/T if box reappears near same spot
+  sticky_radius: 0.6
+  sticky_verify_threshold: 0.45  # sticky P taken back if first ReID crop below this (was 0.35 — too weak)
+  min_identity_confidence: 0.35  # tracker keeps weak boxes; identity only learns from confident ones
+  # Cool-down: wait ~1 min before enrolling a *new* P##. During cool-down we still
+  # compare ReID (+ VLM) against the existing gallery and attach a matched P##.
+  min_stable_seconds: 60.0
+  # Still calculating after ~5 min → remove box + suppress tracker (empty objects die).
+  max_calculating_seconds: 300.0
+  image_size: 448
+  device: "auto"
+  # Flip-TTA doubles ReID VRAM/batch; keep off for multi-cam on 12GB.
+  flip_tta: false
+  # Cosine scale of YOLO26x-reid: same person ~0.45-0.65, different person ~0.15-0.25.
+  # Look-alike outfits score 0.43-0.58 (as high as the same person from a new angle), so
+  # a plain appearance match needs whole-track evidence: min_match_samples crops over
+  # min_match_span_seconds, a high score AND a clear lead over the runner-up. A person who
+  # stays in that band shows P=calculating and gets a NEW P## after ambiguous_enroll_seconds —
+  # never someone else's ID. Seated at their own learned desk, a returnee needs less.
+  match_threshold: 0.50        # best gallery score needed to reuse a P##
+  sole_match_threshold: 0.50   # ... when only one candidate person exists
+  match_margin: 0.08           # best must beat runner-up by this much
+  min_match_samples: 4
+  min_match_span_seconds: 1.5
+  strong_match_threshold: 0.55 # this strong -> accepted after strong_match_samples (3) crops
+  desk_match_threshold: 0.45   # returnee seated at their own desk
+  new_person_threshold: 0.30   # enroll a new P## only if everyone scores below this
+  enroll_samples: 5            # quality crops over min_enroll_span_seconds before a NEW P## (shows P=calculating)
+  min_enroll_span_seconds: 2.0
+  max_pending_seconds: 8.0     # unresolved this long -> decide (match >= 0.50 / new < 0.42)
+  ambiguous_enroll_seconds: 16.0
+  continuity_seconds: 3.0      # re-detected near the lost spot within this -> same P##
+  # Two tracks seen at the same time as separate boxes for this long are two people:
+  # such a neighbour can never take the other's P## (continuity/sticky/appearance),
+  # however similar the outfit scores. Stops seated-desk P## hijacks on a detector miss.
+  coexist_seconds: 2.0
+  seated_hold_seconds: 5.0     # a holder seated at a desk keeps its P## through gaps this long
+  min_crop_side: 40
+  update_interval_seconds: 1.0
+  directory: "data/gallery"
+
+storage:
+  # Tenant-scoped, idempotent history (JSONL per tenant). No frames or biometrics stored.
+  directory: "data/store"
+
+inference:
+  interval_seconds: 1.0
+
+# Multi-cam scalability (previous-pipeline rules). Safe defaults:
+# YOLO / ResNet / association stay sync; VideoMAE + JPEG encode go async;
+# phase offsets stagger ResNet ticks; overload only sheds optional VideoMAE.
+scalability:
+  enabled: true
+  phase_offset: true
+  async_encode: true
+  runtime_speed_flags: true
+  async_videomae: true
+  # Still shed under extreme load, but trip less often so VideoMAE is not frozen for minutes.
+  overload_shedding: true
+  overload_budget_seconds: 2.5
+  overload_consecutive: 12
+
+state:
+  confidence_threshold: 0.80
+  hold_confidence_threshold: 0.60
+  confirmation_seconds: 3.0
+  max_observation_gap_seconds: 5.0
+  uncertain_timeout_seconds: 10.0
+
+stream:
+  read_failure_tolerance: 5
+  reconnect_delay_seconds: 2.0
+  max_reconnect_delay_seconds: 30.0
+  max_reconnect_attempts: null
+  open_timeout_seconds: 10.0
+  read_timeout_seconds: 10.0
+
+visualization:
+  show_window: true
+  save_video: true
+  draw_confidence: true
+  draw_duration: true
+  annotate_all_frames: false
+  output_fps: null
+  colors:
+    occupied: [0, 200, 0]
+    empty: [0, 140, 255]
+    standing_near: [255, 180, 0]
+    unknown: [160, 160, 160]
+    track_confirmed: [0, 220, 255]
+    track_tentative: [200, 200, 80]
+    track_lost: [120, 120, 120]
+    # VideoMAE ROI box colors (BGR)
+    computer_interaction: [0, 200, 0]
+    phone_using: [0, 255, 255]
+    neither: [128, 128, 128]
+
+output:
+  directory: "data/output"
+  flush_interval_seconds: 5.0
+  # Occupied and empty time is totaled by this calendar day. Asia/Karachi is the office
+  # clock, so a restart after midnight starts a new day and a restart during the day does not.
+  report_timezone: "Asia/Karachi"
+
+logging:
+  directory: "logs"
+  level: "INFO"

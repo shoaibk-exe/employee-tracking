@@ -1,0 +1,363 @@
+{
+  "format_version": 1,
+  "tenant_id": "demo",
+  "camera_id": "CAM01",
+  "version": 1,
+  "frame_size": [
+    1920,
+    1080
+  ],
+  "rotation": 0,
+  "created_utc": "2026-10-22T09:14:52+00:00",
+  "source": "admin",
+  "reference_frame": "scene_map_reference.jpg",
+  "fingerprint": "b934d6d92964a905",
+  "notes": [
+    "seeded from admin ROIs config/workstations.json",
+    "WS06: needs review - person evidence [1419, 562, 1656, 872] overlaps WS06 (0.35) and WS07 (0.32)",
+    "WS10: no chair/seated evidence inside context; seat = context box",
+    "WS11: no chair/seated evidence inside context; seat = context box",
+    "seated/chair height ratio 1.16 from 6 workstations"
+  ],
+  "workstations": [
+    {
+      "workstation_id": "WS01",
+      "seat_box": [
+        1056,
+        755,
+        1422,
+        1073
+      ],
+      "context_box": [
+        1098,
+        728,
+        1558,
+        1080
+      ],
+      "confidence": 1.0,
+      "status": "confirmed",
+      "source": "admin",
+      "seated_height_ref": 318.0,
+      "evidence": {
+        "admin_roi_id": "W01",
+        "frames_sampled": 60,
+        "chair_persistence": 0.433,
+        "dwell_persistence": 1.0,
+        "seat_refined": true
+      }
+    },
+    {
+      "workstation_id": "WS02",
+      "seat_box": [
+        314,
+        501,
+        481,
+        731
+      ],
+      "context_box": [
+        287,
+        458,
+        562,
+        822
+      ],
+      "confidence": 1.0,
+      "status": "confirmed",
+      "source": "admin",
+      "seated_height_ref": 230.0,
+      "evidence": {
+        "admin_roi_id": "W02",
+        "frames_sampled": 60,
+        "chair_persistence": 0.317,
+        "dwell_persistence": 0.95,
+        "seat_refined": true
+      }
+    },
+    {
+      "workstation_id": "WS03",
+      "seat_box": [
+        650,
+        560,
+        805,
+        689
+      ],
+      "context_box": [
+        590,
+        550,
+        778,
+        770
+      ],
+      "confidence": 1.0,
+      "status": "confirmed",
+      "source": "admin",
+      "seated_height_ref": 129.0,
+      "evidence": {
+        "admin_roi_id": "W03",
+        "frames_sampled": 60,
+        "chair_persistence": 0.767,
+        "dwell_persistence": 1.0,
+        "seat_refined": true
+      }
+    },
+    {
+      "workstation_id": "WS04",
+      "seat_box": [
+        880,
+        514,
+        940,
+        650
+      ],
+      "context_box": [
+        828,
+        514,
+        1050,
+        727
+      ],
+      "confidence": 1.0,
+      "status": "confirmed",
+      "source": "admin",
+      "seated_height_ref": 169.37436800288913,
+      "evidence": {
+        "admin_roi_id": "W04",
+        "frames_sampled": 60,
+        "chair_persistence": 0.433,
+        "dwell_persistence": 0.0,
+        "seat_refined": true
+      }
+    },
+    {
+      "workstation_id": "WS05",
+      "seat_box": [
+        1076,
+        464,
+        1243,
+        644
+      ],
+      "context_box": [
+        1054,
+        456,
+        1202,
+        656
+      ],
+      "confidence": 1.0,
+      "status": "confirmed",
+      "source": "admin",
+      "seated_height_ref": 180.0,
+      "evidence": {
+        "admin_roi_id": "W05",
+        "frames_sampled": 60,
+        "chair_persistence": 1.0,
+        "dwell_persistence": 1.0,
+        "seat_refined": true
+      }
+    },
+    {
+      "workstation_id": "WS06",
+      "seat_box": [
+        1419,
+        562,
+        1656,
+        872
+      ],
+      "context_box": [
+        1441,
+        636,
+        1768,
+        1016
+      ],
+      "confidence": 1.0,
+      "status": "needs_review",
+      "source": "admin",
+      "seated_height_ref": 310.0,
+      "evidence": {
+        "admin_roi_id": "W06",
+        "frames_sampled": 60,
+        "chair_persistence": 1.0,
+        "dwell_persistence": 0.883,
+        "seat_refined": true,
+        "review_reason": "person evidence [1419, 562, 1656, 872] overlaps WS06 (0.35) and WS07 (0.32)"
+      }
+    },
+    {
+      "workstation_id": "WS07",
+      "seat_box": [
+        1678,
+        580,
+        1758,
+        680
+      ],
+      "context_box": [
+        1504,
+        526,
+        1742,
+        772
+      ],
+      "confidence": 1.0,
+      "status": "confirmed",
+      "source": "admin",
+      "seated_height_ref": 99.76846334416757,
+      "evidence": {
+        "admin_roi_id": "W07",
+        "frames_sampled": 60,
+        "chair_persistence": 0.867,
+        "dwell_persistence": 0.0,
+        "seat_refined": true
+      }
+    },
+    {
+      "workstation_id": "WS08",
+      "seat_box": [
+        1575,
+        503,
+        1692,
+        664
+      ],
+      "context_box": [
+        1582,
+        475,
+        1762,
+        613
+      ],
+      "confidence": 1.0,
+      "status": "confirmed",
+      "source": "admin",
+      "seated_height_ref": 161.0,
+      "evidence": {
+        "admin_roi_id": "W08",
+        "frames_sampled": 60,
+        "chair_persistence": 0.0,
+        "dwell_persistence": 1.0,
+        "seat_refined": true
+      }
+    },
+    {
+      "workstation_id": "WS09",
+      "seat_box": [
+        1242,
+        449,
+        1304,
+        534
+      ],
+      "context_box": [
+        1207,
+        427,
+        1380,
+        545
+      ],
+      "confidence": 1.0,
+      "status": "confirmed",
+      "source": "admin",
+      "seated_height_ref": 84.68718400144456,
+      "evidence": {
+        "admin_roi_id": "W09",
+        "frames_sampled": 60,
+        "chair_persistence": 1.0,
+        "dwell_persistence": 0.0,
+        "seat_refined": true
+      }
+    },
+    {
+      "workstation_id": "WS10",
+      "seat_box": [
+        835,
+        426,
+        1016,
+        556
+      ],
+      "context_box": [
+        835,
+        426,
+        1016,
+        556
+      ],
+      "confidence": 1.0,
+      "status": "confirmed",
+      "source": "admin",
+      "seated_height_ref": null,
+      "evidence": {
+        "admin_roi_id": "W10",
+        "frames_sampled": 60,
+        "chair_persistence": 0.0,
+        "dwell_persistence": 0.0,
+        "seat_refined": false
+      }
+    },
+    {
+      "workstation_id": "WS11",
+      "seat_box": [
+        670,
+        484,
+        812,
+        611
+      ],
+      "context_box": [
+        670,
+        484,
+        812,
+        611
+      ],
+      "confidence": 1.0,
+      "status": "confirmed",
+      "source": "admin",
+      "seated_height_ref": null,
+      "evidence": {
+        "admin_roi_id": "W11",
+        "frames_sampled": 60,
+        "chair_persistence": 0.0,
+        "dwell_persistence": 0.0,
+        "seat_refined": false
+      }
+    },
+    {
+      "workstation_id": "WS12",
+      "seat_box": [
+        629,
+        418,
+        693,
+        493
+      ],
+      "context_box": [
+        563,
+        380,
+        709,
+        500
+      ],
+      "confidence": 1.0,
+      "status": "confirmed",
+      "source": "admin",
+      "seated_height_ref": 75.0,
+      "evidence": {
+        "admin_roi_id": "W12",
+        "frames_sampled": 60,
+        "chair_persistence": 0.833,
+        "dwell_persistence": 0.483,
+        "seat_refined": true
+      }
+    },
+    {
+      "workstation_id": "WS13",
+      "seat_box": [
+        446,
+        422,
+        518,
+        494
+      ],
+      "context_box": [
+        407,
+        394,
+        536,
+        505
+      ],
+      "confidence": 1.0,
+      "status": "confirmed",
+      "source": "admin",
+      "seated_height_ref": 71.92610148067895,
+      "evidence": {
+        "admin_roi_id": "W13",
+        "frames_sampled": 60,
+        "chair_persistence": 1.0,
+        "dwell_persistence": 0.0,
+        "seat_refined": true
+      }
+    }
+  ]
+}
