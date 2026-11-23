@@ -7,6 +7,7 @@ import time
 import cv2
 import numpy as np
 
+from api.redact import redact_rtsp
 from core.io.video_reader import ReconnectPolicy, VideoSourceError, default_capture_factory, rotate
 
 # HEVC/H.265 live streams often emit grey mush until the first IDR keyframe.
@@ -27,8 +28,9 @@ def grab_frame(source: str, rotation: int, timeout_seconds: float = 12.0) -> tup
     """
     policy = ReconnectPolicy(open_timeout_seconds=timeout_seconds, read_timeout_seconds=timeout_seconds)
     capture = default_capture_factory(source, policy)
+    safe_source = redact_rtsp(source)
     if capture is None or not capture.isOpened():
-        raise VideoSourceError(f"Could not open video source: {source}")
+        raise VideoSourceError(f"Could not open video source: {safe_source}")
 
     deadline = time.monotonic() + timeout_seconds
     best: tuple[float, np.ndarray] | None = None
@@ -49,10 +51,10 @@ def grab_frame(source: str, rotation: int, timeout_seconds: float = 12.0) -> tup
 
     if chosen is None:
         if best is None:
-            raise VideoSourceError(f"Could not read a frame from {source}")
+            raise VideoSourceError(f"Could not read a frame from {safe_source}")
         if best[0] < 12.0:
             raise VideoSourceError(
-                f"Only corrupt/grey frames from {source} (detail std={best[0]:.1f}). "
+                f"Only corrupt/grey frames from {safe_source} (detail std={best[0]:.1f}). "
                 "The stream may still be waiting for a keyframe."
             )
         chosen = best[1]

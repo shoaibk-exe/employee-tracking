@@ -1,27 +1,53 @@
 
+import json
+import random
+from pathlib import Path
+from typing import Any
+from urllib.parse import quote
+
 import requests
 import streamlit as st
-import random
-import json
-
-from pathlib import Path
 
 
 MOCK = st.secrets.get("USE_MOCK", True)
-BASE = st.secrets.get("API_URL", "")
+BASE = str(st.secrets.get("API_URL", "") or "").rstrip("/")
 KEY = st.secrets.get("API_KEY", "")
 HEAD = {"x-api-key": KEY}
+_SESSION = requests.Session()
 
 
-def _call(method, path, timeout=10, **kwargs):
+def _format_detail(detail: Any, fallback: str) -> str:
+    if isinstance(detail, list):
+        parts = []
+        for item in detail:
+            if isinstance(item, dict):
+                loc = ".".join(str(part) for part in item.get("loc", []) if part != "body")
+                msg = item.get("msg") or item.get("message") or str(item)
+                parts.append(f"{loc}: {msg}" if loc else msg)
+            else:
+                parts.append(str(item))
+        return "; ".join(parts) if parts else fallback
+    if detail is None:
+        return fallback
+    return str(detail)
 
-    response = requests.request(
-        method,
-        f"{BASE}{path}",
-        headers=HEAD,
-        timeout=timeout,
-        **kwargs
-    )
+
+def _call(method: str, path: str, timeout: float = 10, **kwargs: Any) -> Any:
+    """Call the EMPTracker API and raise ``requests.HTTPError`` with a readable detail."""
+    try:
+        response = _SESSION.request(
+            method,
+            f"{BASE}{path}",
+            headers=HEAD,
+            timeout=timeout,
+            **kwargs,
+        )
+    except requests.Timeout as exc:
+        raise requests.RequestException(f"API timed out calling {method} {path}") from exc
+    except requests.ConnectionError as exc:
+        raise requests.RequestException(
+            f"Could not reach API at {BASE or '(empty API_URL)'} for {method} {path}"
+        ) from exc
 
     if response.status_code == 204 or not response.content:
         return {"ok": True}
@@ -32,19 +58,18 @@ def _call(method, path, timeout=10, **kwargs):
         body = {"message": response.text}
 
     if not response.ok:
-
         detail = response.reason
-
         if isinstance(body, dict):
-            detail = body.get("detail", body.get("message", detail))
-
-        raise requests.HTTPError(str(detail))
+            detail = _format_detail(body.get("detail", body.get("message", detail)), detail)
+        elif isinstance(body, list):
+            detail = _format_detail(body, detail)
+        raise requests.HTTPError(str(detail), response=response)
 
     return body
 
 
-def _with_key(path):
-
+def _with_key(path: str) -> str:
+    """Append the API key query param for browser <img> URLs."""
     if not path:
         return path
 
@@ -57,8 +82,7 @@ def _with_key(path):
         return url
 
     joiner = "&" if "?" in url else "?"
-
-    return f"{url}{joiner}key={KEY}"
+    return f"{url}{joiner}key={quote(str(KEY), safe='')}"
 
 CAMERA_FILE = Path(__file__).resolve().parent / "mock_cameras.json"
 EMPLOYEE_FILE = Path(__file__).resolve().parent / "mock_employees.json"

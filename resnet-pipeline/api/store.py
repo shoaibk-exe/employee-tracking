@@ -10,8 +10,16 @@ import json
 import threading
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 from core.occupancy.roi_manager import ROIConfigError, ROIManager, validate_bbox
+
+_MAX_CAMERA_NAME = 100
+_MAX_RTSP_LEN = 2048
+_MAX_EMPLOYEE_NAME = 100
+_MAX_IMAGE_BYTES = 10 * 1024 * 1024
+_JPEG_MAGIC = b"\xff\xd8\xff"
+_PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
 
 
 class CatalogError(ValueError):
@@ -23,6 +31,7 @@ class Catalog:
         self.root = Path(root)
         self.cameras_path = self.root / "cameras.json"
         self.employees_path = self.root / "employees.json"
+        self.camera_seq_path = self.root / ".camera_seq"
         self.roi_dir = self.root / "rois"
         self.image_dir = self.root / "employee_images"
         self.session_dir = self.root / "sessions"
@@ -47,11 +56,25 @@ class Catalog:
         rtsp = rtsp.strip()
         if not name:
             raise CatalogError("Camera name is required.")
+        if len(name) > _MAX_CAMERA_NAME:
+            raise CatalogError(f"Camera name must be {_MAX_CAMERA_NAME} characters or fewer.")
+        if any(ord(ch) < 32 for ch in name):
+            raise CatalogError("Camera name must not contain control characters.")
         if not rtsp.startswith("rtsp://"):
             raise CatalogError("RTSP link must start with rtsp://")
+        if len(rtsp) > _MAX_RTSP_LEN:
+            raise CatalogError(f"RTSP link must be {_MAX_RTSP_LEN} characters or fewer.")
+        if any(ord(ch) < 32 for ch in rtsp):
+            raise CatalogError("RTSP link must not contain control characters.")
+        try:
+            parsed = urlsplit(rtsp)
+        except ValueError as exc:
+            raise CatalogError("RTSP link is not a valid URL.") from exc
+        if not parsed.hostname:
+            raise CatalogError("RTSP link must include a hostname.")
         with self._lock:
             cameras = self._read(self.cameras_path, [])
-            camera_id = max((int(camera["id"]) for camera in cameras), default=0) + 1
+            camera_id = self._next_camera_id(cameras)
             camera = {
                 "id": camera_id,
                 "name": name,
@@ -109,7 +132,9 @@ class Catalog:
     def save_snapshot(self, camera_id: Any, jpeg: bytes) -> Path:
         path = self.snapshot_path(camera_id)
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_bytes(jpeg)
+        temporary = path.with_suffix(".jpg.tmp")
+        temporary.write_bytes(jpeg)
+        temporary.replace(path)
         return path
 
     def save_rois(
@@ -165,8 +190,16 @@ class Catalog:
         name = name.strip()
         if not name:
             raise CatalogError("Employee name is required.")
+        if len(name) > _MAX_EMPLOYEE_NAME:
+            raise CatalogError(f"Employee name must be {_MAX_EMPLOYEE_NAME} characters or fewer.")
         if not image_bytes:
             raise CatalogError("Image is empty.")
+        if len(image_bytes) > _MAX_IMAGE_BYTES:
+            raise CatalogError(f"Image must be {_MAX_IMAGE_BYTES // (1024 * 1024)} MB or smaller.")
+        is_jpeg = image_bytes.startswith(_JPEG_MAGIC)
+        is_png = image_bytes.startswith(_PNG_MAGIC)
+        if not is_jpeg and not is_png:
+            raise CatalogError("Image must be a JPEG or PNG file.")
         with self._lock:
             employees = self._read(self.employees_path, [])
             employee = next(
@@ -184,13 +217,15 @@ class Catalog:
                 (int(image["id"]) for person in employees for image in person.get("images", [])),
                 default=0,
             ) + 1
-            suffix = Path(filename).suffix.lower() or ".jpg"
+            suffix = Path(filename).suffix.lower() or (".png" if is_png else ".jpg")
             if suffix not in {".jpg", ".jpeg", ".png"}:
-                suffix = ".jpg"
+                suffix = ".png" if is_png else ".jpg"
             relative = Path(str(employee["id"])) / f"{image_id}{suffix}"
             target = self.image_dir / relative
             target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_bytes(image_bytes)
+            temporary = target.with_suffix(target.suffix + ".tmp")
+            temporary.write_bytes(image_bytes)
+            temporary.replace(target)
             employee["images"].append({
                 "id": image_id,
                 "filename": Path(filename).name or target.name,
@@ -241,6 +276,17 @@ class Catalog:
         for image in removed:
             (self.image_dir / image["file"]).unlink(missing_ok=True)
         return True
+
+    def _next_camera_id(self, cameras: list[dict[str, Any]]) -> int:
+        """Monotonic id so deleting the highest camera cannot reuse its session dir."""
+        highest = max((int(camera["id"]) for camera in cameras), default=0)
+        try:
+            stored = int(self.camera_seq_path.read_text(encoding="utf-8").strip())
+        except (OSError, ValueError):
+            stored = 0
+        next_id = max(highest, stored) + 1
+        self.camera_seq_path.write_text(str(next_id), encoding="utf-8")
+        return next_id
 
     def _read(self, path: Path, fallback: Any) -> Any:
         if not path.is_file():

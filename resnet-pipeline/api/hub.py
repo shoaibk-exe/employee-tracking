@@ -31,6 +31,16 @@ def hub_dirs() -> tuple[Path, Path]:
     return HUB_DIR, ACTIVE_DIR
 
 
+def _pid_looks_like_hub(pid: int) -> bool:
+    """True when ``/proc/<pid>/cmdline`` still names this hub module (avoids PID reuse)."""
+    try:
+        raw = Path(f"/proc/{pid}/cmdline").read_bytes()
+    except OSError:
+        return False
+    text = raw.replace(b"\x00", b" ").decode("utf-8", errors="replace")
+    return "api.hub" in text
+
+
 def is_hub_alive() -> bool:
     if not PID_PATH.is_file():
         return False
@@ -42,7 +52,7 @@ def is_hub_alive() -> bool:
         os.kill(pid, 0)
     except OSError:
         return False
-    return True
+    return _pid_looks_like_hub(pid)
 
 
 def ensure_hub(python: str | None = None) -> None:
@@ -63,14 +73,22 @@ def ensure_hub(python: str | None = None) -> None:
             pass
         exe = python or sys.executable
         log_path = HUB_DIR / "hub.log"
+        # Leave the handle open for the child process lifetime (owned by Popen).
         handle = open(log_path, "a", encoding="utf-8")
-        proc = subprocess.Popen(
-            [exe, "-m", "api.hub"],
-            cwd=str(ROOT),
-            stdout=handle,
-            stderr=subprocess.STDOUT,
-            start_new_session=True,
-        )
+        try:
+            proc = subprocess.Popen(
+                [exe, "-m", "api.hub"],
+                cwd=str(ROOT),
+                stdout=handle,
+                stderr=subprocess.STDOUT,
+                start_new_session=True,
+            )
+        except Exception:
+            handle.close()
+            raise
+        else:
+            # Parent no longer needs its copy of the fd; the child keeps stdout.
+            handle.close()
         PID_PATH.write_text(str(proc.pid), encoding="utf-8")
         log.info("Started multi-cam hub pid=%s", proc.pid)
         # Brief wait so a racing second ensure_hub sees the live pid.
@@ -94,6 +112,18 @@ def _launch_fingerprint(launch: dict[str, Any]) -> tuple[str, float]:
     return payload, mtime
 
 
+def _validate_launch(payload: dict[str, Any]) -> str | None:
+    """Return an error string when a hub launch file is missing required keys."""
+    if not payload.get("jpeg"):
+        return "missing jpeg path"
+    if not payload.get("settings"):
+        return "missing settings path"
+    overrides = payload.get("overrides")
+    if not isinstance(overrides, dict):
+        return "missing overrides"
+    return None
+
+
 class _CameraSlot:
     def __init__(self, camera_id: str, launch: dict[str, Any]) -> None:
         self.camera_id = camera_id
@@ -102,6 +132,8 @@ class _CameraSlot:
         self.stop = threading.Event()
         self.thread: threading.Thread | None = None
         self.app: Any = None
+        self.retry_at = 0.0
+        self.failures = 0
 
     def alive(self) -> bool:
         return self.thread is not None and self.thread.is_alive()
@@ -124,44 +156,47 @@ class DetectionHub:
         self._resnet = None
         self._videomae = None
         self._settings_path: Path | None = None
+        self._shared_retry_at = 0.0
 
     def request_stop(self) -> None:
+        # Signal-safe: only set the event. ``run()`` joins slots after the loop.
+        # Taking ``self._lock`` here can deadlock if SIGTERM arrives during ``_sync``.
         self._stop.set()
-        with self._lock:
-            slots = list(self._slots.values())
-        for slot in slots:
-            slot.stop.set()
-            app = slot.app
-            if app is not None:
-                app.request_stop()
 
     def _load_shared(self, settings_path: Path) -> None:
         if self._resnet is not None:
             return
+        if time.monotonic() < self._shared_retry_at:
+            raise RuntimeError("Shared model load is in backoff")
         from core.activity.videomae_classifier import ActivityError, VideoMAEActivityClassifier
         from core.config import load_settings
         from core.occupancy.classifier import ResNet18Classifier
         from core.scalability import ensure_runtime_speed_flags
 
         # Minimal settings load for model paths (camera overrides do not change weights).
-        base = load_settings(settings_path, {
-            "pipeline": {"mode": "full"},
-            "visualization": {"show_window": False, "save_video": False},
-        })
-        if base.scalability.enabled and base.scalability.runtime_speed_flags:
-            ensure_runtime_speed_flags(True)
-        log.info("Loading shared ResNet on %s", base.device)
-        self._resnet = ResNet18Classifier(
-            base.checkpoint, base.class_names, base.preprocessing_config, base.device, base.batch_size,
-        )
-        if base.activity.enabled:
-            try:
-                log.info("Loading shared VideoMAE from %s", base.activity.checkpoint)
-                self._videomae = VideoMAEActivityClassifier(base.activity)
-            except ActivityError as exc:
-                log.error("Shared VideoMAE disabled: %s", exc)
-                self._videomae = None
-        self._settings_path = settings_path
+        try:
+            base = load_settings(settings_path, {
+                "pipeline": {"mode": "full"},
+                "visualization": {"show_window": False, "save_video": False},
+            })
+            if base.scalability.enabled and base.scalability.runtime_speed_flags:
+                ensure_runtime_speed_flags(True)
+            log.info("Loading shared ResNet on %s", base.device)
+            self._resnet = ResNet18Classifier(
+                base.checkpoint, base.class_names, base.preprocessing_config, base.device, base.batch_size,
+            )
+            if base.activity.enabled:
+                try:
+                    log.info("Loading shared VideoMAE from %s", base.activity.checkpoint)
+                    self._videomae = VideoMAEActivityClassifier(base.activity)
+                except ActivityError as exc:
+                    log.error("Shared VideoMAE disabled: %s", exc)
+                    self._videomae = None
+            self._settings_path = settings_path
+            self._shared_retry_at = 0.0
+        except Exception:
+            self._shared_retry_at = time.monotonic() + 15.0
+            raise
 
     def _run_camera(self, slot: _CameraSlot) -> None:
         from core.config import load_settings
@@ -169,10 +204,17 @@ class DetectionHub:
         from main import FullApp
 
         launch = slot.launch
-        jpeg_path = Path(launch["jpeg"])
-        jpeg_path.parent.mkdir(parents=True, exist_ok=True)
-        progress_path = jpeg_path.with_name("progress.json")
-        settings = load_settings(Path(launch["settings"]), launch["overrides"])
+        try:
+            jpeg_path = Path(launch["jpeg"])
+            jpeg_path.parent.mkdir(parents=True, exist_ok=True)
+            progress_path = jpeg_path.with_name("progress.json")
+            settings = load_settings(Path(launch["settings"]), launch["overrides"])
+        except Exception:
+            log.exception("Camera %s launch setup failed; backing off", slot.camera_id)
+            slot.failures += 1
+            slot.retry_at = time.monotonic() + min(60.0, 2.0 ** min(slot.failures, 5))
+            return
+
         scale = settings.scalability
         jpeg_publisher: AsyncJpegPublisher | None = None
 
@@ -221,22 +263,30 @@ class DetectionHub:
                 try:
                     log.info("Camera %s detection thread starting", slot.camera_id)
                     app.run()
+                    slot.failures = 0
                 except Exception:
+                    slot.failures += 1
                     log.exception("Camera %s detection failed; retrying", slot.camera_id)
                 slot.app = None
                 if slot.stop.is_set() or self._stop.is_set():
                     break
                 # Live open now retries inside VideoReader; keep a short gap between full restarts.
-                slot.stop.wait(2.0)
+                backoff = min(30.0, 2.0 + float(slot.failures))
+                slot.stop.wait(backoff)
         finally:
             if jpeg_publisher is not None:
                 jpeg_publisher.close()
 
     def _sync(self) -> None:
         desired: dict[str, dict[str, Any]] = {}
+        now = time.monotonic()
         for path in ACTIVE_DIR.glob("*.json"):
             try:
                 payload = json.loads(path.read_text(encoding="utf-8"))
+                problem = _validate_launch(payload)
+                if problem:
+                    log.error("Skipping hub launch file %s: %s", path, problem)
+                    continue
                 camera_id = str(payload.get("camera_id") or path.stem)
                 desired[camera_id] = payload
             except Exception:
@@ -267,9 +317,15 @@ class DetectionHub:
                     self._slots.pop(camera_id, None)
                     restarted = True
                 elif slot is not None and not slot.alive():
+                    if now < slot.retry_at:
+                        continue
                     self._slots.pop(camera_id, None)
                 if self._settings_path is None:
-                    self._load_shared(Path(launch["settings"]))
+                    try:
+                        self._load_shared(Path(launch["settings"]))
+                    except Exception:
+                        log.exception("Shared model load failed; will retry")
+                        continue
                 log.info("Starting camera %s on hub", camera_id)
                 slot = _CameraSlot(camera_id, launch)
                 slot.thread = threading.Thread(

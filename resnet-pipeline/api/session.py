@@ -117,17 +117,30 @@ class DetectionSession:
             },
         }
         path = self._launch_path()
-        temporary = path.with_suffix(".tmp")
-        temporary.write_text(json.dumps(launch), encoding="utf-8")
+        # Unique temp name so refresh_launch and the monitor thread cannot clobber each other.
+        temporary = path.with_name(f"{path.stem}.{threading.get_ident()}.tmp")
+        payload = json.dumps(launch)
+        temporary.write_text(payload, encoding="utf-8")
         temporary.replace(path)
-        (self.output_dir / "launch.json").write_text(json.dumps(launch), encoding="utf-8")
+        try:
+            path.chmod(0o600)
+        except OSError:
+            logger.warning("Could not chmod hub launch file for camera %s", self.camera_id)
+        launch_copy = self.output_dir / "launch.json"
+        launch_tmp = launch_copy.with_name(f"launch.{threading.get_ident()}.tmp")
+        launch_tmp.write_text(payload, encoding="utf-8")
+        launch_tmp.replace(launch_copy)
+        try:
+            launch_copy.chmod(0o600)
+        except OSError:
+            pass
         ensure_hub()
 
     def _unregister(self) -> None:
         try:
             self._launch_path().unlink(missing_ok=True)
         except OSError:
-            pass
+            logger.warning("Could not remove hub launch file for camera %s", self.camera_id)
 
     def _run(self) -> None:
         """Register once with the hub and keep the JPEG subscription alive.
@@ -140,29 +153,35 @@ class DetectionSession:
         self._seed_jpeg_from_disk()
         self._register()
         while not self._stop.is_set():
-            # Hub may have dropped us after a crash — put the launch file back.
-            if not self._launch_path().is_file():
-                logger.warning("Camera %s missing from hub; re-registering", self.camera_id)
-                self._on_status(self.camera_id, "reconnecting", "Re-registering with hub.")
-                self._register()
-                self._marked_online = False
-
-            fresh = self._pull_jpeg()
-            if fresh:
-                # Clear reconnecting as soon as frames are moving again.
-                if (not self._marked_online) or self.error:
-                    self._marked_online = True
-                    self.error = ""
-                    self._on_status(self.camera_id, "online", "")
-            elif self._jpeg_stale(45.0):
-                if self.error != "Stream stalled; waiting for next good frame.":
-                    self.error = "Stream stalled; waiting for next good frame."
+            try:
+                # Hub may have dropped us after a crash — put the launch file back.
+                if not self._launch_path().is_file():
+                    logger.warning("Camera %s missing from hub; re-registering", self.camera_id)
+                    self._on_status(self.camera_id, "reconnecting", "Re-registering with hub.")
+                    self._register()
                     self._marked_online = False
-                    logger.warning("Camera %s %s", self.camera_id, self.error)
-                    self._on_status(self.camera_id, "reconnecting", self.error)
+
+                fresh = self._pull_jpeg()
+                if fresh:
+                    # Clear reconnecting as soon as frames are moving again.
+                    if (not self._marked_online) or self.error:
+                        self._marked_online = True
+                        self.error = ""
+                        self._on_status(self.camera_id, "online", "")
+                elif self._jpeg_stale(45.0):
+                    if self.error != "Stream stalled; waiting for next good frame.":
+                        self.error = "Stream stalled; waiting for next good frame."
+                        self._marked_online = False
+                        logger.warning("Camera %s %s", self.camera_id, self.error)
+                        self._on_status(self.camera_id, "reconnecting", self.error)
+            except Exception:
+                logger.exception("Camera %s session monitor crashed; continuing", self.camera_id)
             self._stop.wait(0.25)
         self._unregister()
-        self._on_status(self.camera_id, "offline", "")
+        try:
+            self._on_status(self.camera_id, "offline", "")
+        except Exception:
+            logger.exception("Camera %s failed to mark offline", self.camera_id)
 
     def _jpeg_stale(self, seconds: float) -> bool:
         if self._jpeg_mtime <= 0:

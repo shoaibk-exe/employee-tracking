@@ -65,3 +65,26 @@ def test_boxes_must_lie_inside_the_snapshot(tmp_path: Path):
             [{"name": "W01", "bbox": [90, 10, 120, 40]}],
             camera["rtsp"],
         )
+
+
+def test_camera_ids_do_not_reuse_after_delete(tmp_path: Path):
+    catalog = Catalog(tmp_path)
+    first = catalog.add_camera("A", "rtsp://10.0.0.1/live", rotate=False)
+    second = catalog.add_camera("B", "rtsp://10.0.0.2/live", rotate=False)
+    assert first["id"] == 1
+    assert second["id"] == 2
+    catalog.delete_camera(second["id"])
+    third = catalog.add_camera("C", "rtsp://10.0.0.3/live", rotate=False)
+    assert third["id"] == 3
+
+
+def test_enroll_rejects_non_image_bytes(tmp_path: Path):
+    catalog = Catalog(tmp_path)
+    with pytest.raises(CatalogError, match="JPEG or PNG"):
+        catalog.enroll("Alex", "face.bin", b"not-an-image")
+
+
+def test_add_camera_requires_hostname(tmp_path: Path):
+    catalog = Catalog(tmp_path)
+    with pytest.raises(CatalogError, match="hostname"):
+        catalog.add_camera("Bad", "rtsp:///nohost", rotate=False)

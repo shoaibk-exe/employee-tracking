@@ -1,0 +1,75 @@
+{
+  "version": 2,
+  "skills": {
+    "python-anti-patterns": {
+      "source": "wshobson/agents",
+      "commit": "51b9ae3ac68d9c236549a9b57f5dca7e6c0c168c",
+      "sourceType": "github",
+      "skillPath": "plugins/python-development/skills/python-anti-patterns/SKILL.md",
+      "computedHash": "9a98a1ddf7517582a43d9d27e3c84c3e3763791bb1f38926f1fe9bf49ad8e33a"
+    },
+    "python-code-style": {
+      "source": "wshobson/agents",
+      "commit": "51b9ae3ac68d9c236549a9b57f5dca7e6c0c168c",
+      "sourceType": "github",
+      "skillPath": "plugins/python-development/skills/python-code-style/SKILL.md",
+      "computedHash": "ac7538b1ccb0e4b1cbcccfe883ff3d5e004e138af1b6830359a81a0400abc71c"
+    },
+    "python-design-patterns": {
+      "source": "wshobson/agents",
+      "commit": "51b9ae3ac68d9c236549a9b57f5dca7e6c0c168c",
+      "sourceType": "github",
+      "skillPath": "plugins/python-development/skills/python-design-patterns/SKILL.md",
+      "computedHash": "bb31c26764cb2bf8f19955e1610e8102509cb1569e1575a413ffb3ada23a3c16"
+    },
+    "python-error-handling": {
+      "source": "wshobson/agents",
+      "commit": "51b9ae3ac68d9c236549a9b57f5dca7e6c0c168c",
+      "sourceType": "github",
+      "skillPath": "plugins/python-development/skills/python-error-handling/SKILL.md",
+      "computedHash": "1f1da6dd6e89c36d28660728512bcb93b17d4f210ddfa727e1b519147fea20b9"
+    },
+    "python-observability": {
+      "source": "wshobson/agents",
+      "commit": "51b9ae3ac68d9c236549a9b57f5dca7e6c0c168c",
+      "sourceType": "github",
+      "skillPath": "plugins/python-development/skills/python-observability/SKILL.md",
+      "computedHash": "1b8c7781322aed606f23cf002d3d6b3b4e6c831c491cd1c029cd8a14b70f0c4e"
+    },
+    "python-performance-optimization": {
+      "source": "wshobson/agents",
+      "commit": "51b9ae3ac68d9c236549a9b57f5dca7e6c0c168c",
+      "sourceType": "github",
+      "skillPath": "plugins/python-development/skills/python-performance-optimization/SKILL.md",
+      "computedHash": "81a1369058d4089e208104bbfc384cd73eb6b62d654bda87cf33cb97ea296ccd"
+    },
+    "python-project-structure": {
+      "source": "wshobson/agents",
+      "commit": "51b9ae3ac68d9c236549a9b57f5dca7e6c0c168c",
+      "sourceType": "github",
+      "skillPath": "plugins/python-development/skills/python-project-structure/SKILL.md",
+      "computedHash": "b7d35eb6783ddf2a99c130dc570e47341fd78749024382a6f74d146024404918"
+    },
+    "python-testing-patterns": {
+      "source": "wshobson/agents",
+      "commit": "51b9ae3ac68d9c236549a9b57f5dca7e6c0c168c",
+      "sourceType": "github",
+      "skillPath": "plugins/python-development/skills/python-testing-patterns/SKILL.md",
+      "computedHash": "8113c05a831d4872c9294b0df26a335c09af423ee2e23d8b9b6817b300d96796"
+    },
+    "python-type-safety": {
+      "source": "wshobson/agents",
+      "commit": "51b9ae3ac68d9c236549a9b57f5dca7e6c0c168c",
+      "sourceType": "github",
+      "skillPath": "plugins/python-development/skills/python-type-safety/SKILL.md",
+      "computedHash": "f993e4c721397568ebfa3f40693c768470c10bf5966fc0aa071925eaa3b61918"
+    },
+    "security-best-practices": {
+      "source": "openai/skills",
+      "commit": "49f948faa9258a0c61caceaf225e179651397431",
+      "sourceType": "github",
+      "skillPath": "skills/.curated/security-best-practices/SKILL.md",
+      "computedHash": "f3a018deca655724357a5576d36026b78f174a97094d42d3ef5f7ff08c9c1f27"
+    }
+  }
+}

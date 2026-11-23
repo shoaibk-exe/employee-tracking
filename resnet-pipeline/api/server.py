@@ -14,9 +14,11 @@ automatically so the dashboard does not need a manual Start click after reboot.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import os
+import secrets
 import threading
 import time
 from contextlib import asynccontextmanager
@@ -40,14 +42,51 @@ ROOT = Path(__file__).resolve().parents[1]
 SETTINGS = ROOT / "config" / "settings.yaml"
 CATALOG = Catalog(ROOT / "data" / "api")
 API_KEY = os.environ.get("MONITOR_API_KEY", "your-key-here")
+_DEFAULT_API_KEY = "your-key-here"
+_MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 logger = logging.getLogger("api.server")
 
 _sessions: dict[str, DetectionSession] = {}
-_sessions_lock = threading.Lock()
+_sessions_lock = threading.RLock()
+
+
+class _RedactQueryKeyFilter(logging.Filter):
+    """Keep ``?key=`` out of access logs (Streamlit img tags pass the key in the query)."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        try:
+            message = record.getMessage()
+        except Exception:
+            return True
+        if "key=" not in message:
+            return True
+        # Replace key=... up to the next separator without altering the rest of the line.
+        parts = []
+        remainder = message
+        while "key=" in remainder:
+            before, after = remainder.split("key=", 1)
+            parts.append(before)
+            parts.append("key=***")
+            cut = len(after)
+            for sep in ("&", " ", '"', "'"):
+                idx = after.find(sep)
+                if idx != -1:
+                    cut = min(cut, idx)
+            remainder = after[cut:] if cut < len(after) else ""
+        parts.append(remainder)
+        record.msg = "".join(parts)
+        record.args = ()
+        return True
 
 
 @asynccontextmanager
 async def _lifespan(_app: FastAPI):
+    if not API_KEY or API_KEY == _DEFAULT_API_KEY:
+        logger.warning(
+            "MONITOR_API_KEY is unset or still the default placeholder; "
+            "set a strong secret before exposing this API."
+        )
+    logging.getLogger("uvicorn.access").addFilter(_RedactQueryKeyFilter())
     _autostart_cameras()
     try:
         yield
@@ -65,27 +104,30 @@ app.add_middleware(
 
 
 class CameraIn(BaseModel):
-    name: str
-    rtsp: str
+    name: str = Field(min_length=1, max_length=100)
+    rtsp: str = Field(min_length=8, max_length=2048)
     rotate: bool = False
 
 
 class WorkstationBox(BaseModel):
-    name: str | None = None
+    name: str | None = Field(default=None, max_length=64)
     bbox: list[int] = Field(min_length=4, max_length=4)
 
 
 class RoiIn(BaseModel):
-    width: int
-    height: int
-    workstations: list[WorkstationBox]
+    # Upper bounds only — store still returns 400 for width/height <= 0 or empty boxes.
+    width: int = Field(le=16384)
+    height: int = Field(le=16384)
+    workstations: list[WorkstationBox] = Field(max_length=256)
 
 
 def require_key(
     x_api_key: str | None = Header(default=None),
     key: str | None = Query(default=None),
 ) -> None:
-    if API_KEY and (x_api_key or key) != API_KEY:
+    provided = x_api_key or key or ""
+    # Keep ``?key=`` support for <img> tags; compare in constant time.
+    if not API_KEY or not secrets.compare_digest(provided, API_KEY):
         raise HTTPException(status_code=401, detail="Invalid API key")
 
 
@@ -170,16 +212,20 @@ def _begin_detection(camera: dict[str, Any]) -> None:
         error="Starting detection on the saved workstation ROI…",
     )
 
+    # Serialize check/stop/create/start so concurrent /start + /rois cannot orphan a session.
+    # Join the previous worker outside the lock so other cameras are not blocked.
     with _sessions_lock:
         existing = _sessions.get(camera_id)
+        if existing is not None and existing.running:
+            # ROI file mtime already changed; refresh launch so the hub restarts that cam only.
+            existing.refresh_launch()
+            existing.reload_preview()
+            return
+        old = _sessions.pop(camera_id, None)
 
-    if existing is not None and existing.running:
-        # ROI file mtime already changed; refresh launch so the hub restarts that cam only.
-        existing.refresh_launch()
-        existing.reload_preview()
-        return
+    if old is not None:
+        old.stop()
 
-    _stop_session(camera_id)
     session = DetectionSession(
         camera_id=camera_id,
         source=camera["rtsp"],
@@ -190,8 +236,13 @@ def _begin_detection(camera: dict[str, Any]) -> None:
         on_status=_status,
     )
     with _sessions_lock:
+        # Another request may have won the race while we joined; prefer the newer one.
+        raced = _sessions.get(camera_id)
+        if raced is not None and raced.running and raced is not session:
+            session.stop()
+            return
         _sessions[camera_id] = session
-    session.start()
+        session.start()
 
 
 def _autostart_cameras() -> None:
@@ -430,22 +481,30 @@ def stop_camera(camera_id: str) -> dict[str, bool]:
 
 
 @app.get("/stream/{camera_id}")
-def stream_camera(camera_id: str, _: None = Depends(require_key)) -> StreamingResponse:
+async def stream_camera(camera_id: str, _: None = Depends(require_key)) -> StreamingResponse:
     _camera_or_404(camera_id)
 
-    def frames():
-        while CATALOG.get_camera(camera_id) is not None:
+    async def frames():
+        last_jpeg: bytes | None = None
+        last_exists_check = 0.0
+        while True:
+            now = time.monotonic()
+            if now - last_exists_check >= 1.0:
+                if CATALOG.get_camera(camera_id) is None:
+                    break
+                last_exists_check = now
             with _sessions_lock:
                 session = _sessions.get(str(camera_id))
             jpeg = None if session is None else session.latest_jpeg()
-            if jpeg:
+            if jpeg and jpeg is not last_jpeg and jpeg != last_jpeg:
+                last_jpeg = jpeg
                 header = (
                     b"--frame\r\nContent-Type: image/jpeg\r\nContent-Length: "
                     + str(len(jpeg)).encode()
                     + b"\r\n\r\n"
                 )
                 yield header + jpeg + b"\r\n"
-            time.sleep(0.05)
+            await asyncio.sleep(0.05)
 
     return StreamingResponse(
         frames(),
@@ -483,7 +542,11 @@ def _office_progress(selected_date: str | None, request: Request) -> dict[str, A
     files: list[dict[str, str]] = []
     for camera in CATALOG.list_cameras():
         rtsp = str(camera.get("rtsp") or "").strip()
-        combined = _camera_day(camera, day)
+        try:
+            combined = _camera_day(camera, day)
+        except Exception:
+            logger.exception("Failed to load day ledger for camera %s", camera.get("id"))
+            continue
         for row in combined.get("workstations") or []:
             occ = float(row.get("occupied_seconds") or 0.0)
             emp = float(row.get("empty_seconds") or 0.0)
@@ -579,7 +642,12 @@ def report(selected_date: str | None = Query(default=None, alias="date")) -> lis
         return []
     table = []
     for camera in CATALOG.list_cameras():
-        for row in _camera_day(camera, day).get("workstations") or []:
+        try:
+            workstations = _camera_day(camera, day).get("workstations") or []
+        except Exception:
+            logger.exception("Failed to load report rows for camera %s", camera.get("id"))
+            continue
+        for row in workstations:
             occupied = float(row.get("occupied_seconds") or 0.0)
             empty = float(row.get("empty_seconds") or 0.0)
             total = occupied + empty
@@ -633,10 +701,25 @@ def list_employees(request: Request) -> list[dict[str, Any]]:
     return rows
 
 
+async def _read_upload(image: UploadFile, *, limit: int = _MAX_UPLOAD_BYTES) -> bytes:
+    """Read an upload with a hard size cap (security-best-practices UPLOAD/LIMITS)."""
+    chunks: list[bytes] = []
+    total = 0
+    while True:
+        chunk = await image.read(1024 * 1024)
+        if not chunk:
+            break
+        total += len(chunk)
+        if total > limit:
+            raise HTTPException(status_code=413, detail="Image upload exceeds the 10 MB limit.")
+        chunks.append(chunk)
+    return b"".join(chunks)
+
+
 @app.post("/employees", dependencies=[Depends(require_key)])
 async def create_employee(name: str = Form(...), image: UploadFile = File(...)) -> dict[str, Any]:
     try:
-        return CATALOG.enroll(name, image.filename or "image.jpg", await image.read())
+        return CATALOG.enroll(name, image.filename or "image.jpg", await _read_upload(image))
     except CatalogError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -650,7 +733,11 @@ async def add_employee_image(employee_id: str, image: UploadFile = File(...)) ->
     if employee is None:
         raise HTTPException(status_code=404, detail="Employee not found.")
     try:
-        return CATALOG.enroll(employee["name"], image.filename or "image.jpg", await image.read())
+        return CATALOG.enroll(
+            employee["name"],
+            image.filename or "image.jpg",
+            await _read_upload(image),
+        )
     except CatalogError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
